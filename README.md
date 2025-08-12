@@ -47,10 +47,17 @@ go build -o seekr seekr.go
 
 ### Using Pre-built Binaries
 
-Pre-built binaries are available in the `bin/` directory:
+Pre-built binaries are available in the [latest GitHub release](https://github.com/mertzjames/go-seekr/releases/latest):
 
 - `seekr-amd64-linux` - Linux AMD64
 - `seekr-arm64-linux` - Linux ARM64
+
+Download the appropriate binary for your platform from the release page and make it executable:
+
+```bash
+chmod +x seekr-amd64-linux
+./seekr-amd64-linux
+```
 
 ## Usage
 
