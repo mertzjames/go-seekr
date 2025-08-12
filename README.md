@@ -129,6 +129,10 @@ The tool scans for environment variables and configuration values that commonly 
 - Additional output formats (JSON, CSV)
 - Whitelist/blacklist functionality
 
+## AI Disclosure
+
+This README was generated with assistance from Claude (Anthropic's AI assistant). Additionally, other AI tools were used to assist in the creation of this tool. However, no code was directly copy-pasted from AI sources - all code was written and reviewed by human developers.
+
 ## Contributing
 
 Contributions are welcome! Please feel free to submit pull requests or open issues for bugs and feature requests.
