@@ -49,14 +49,34 @@ go build -o seekr main.go
 
 Pre-built binaries are available in the [latest GitHub release](https://github.com/mertzjames/go-seekr/releases/latest):
 
+**Linux:**
+
 - `seekr-amd64-linux` - Linux AMD64
 - `seekr-arm64-linux` - Linux ARM64
 
+**macOS:**
+
+- `seekr-amd64-darwin` - macOS AMD64 (Intel)
+- `seekr-arm64-darwin` - macOS ARM64 (Apple Silicon)
+
+**Windows:**
+
+- `seekr-amd64-windows.exe` - Windows AMD64
+- `seekr-arm64-windows.exe` - Windows ARM64
+
 Download the appropriate binary for your platform from the release page and make it executable:
+
+**Linux/macOS:**
 
 ```bash
 chmod +x seekr-amd64-linux
 ./seekr-amd64-linux
+```
+
+**Windows:**
+
+```cmd
+seekr-amd64-windows.exe
 ```
 
 ## Usage
