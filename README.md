@@ -140,14 +140,61 @@ Scan all files including binary files:
 
 ### Supported Languages
 
-The tool supports scanning files for the following programming languages:
+The tool supports scanning files for the following programming languages. Use the exact language names shown below with the `--language` flag:
 
-- **Web**: JavaScript, TypeScript, PHP, HTML
-- **Backend**: Python, Java, C#, Go, Ruby, Rust
-- **Mobile**: Swift, Kotlin, Dart, Objective-C
-- **Systems**: C, C++, Shell scripts, PowerShell
-- **Data**: SQL, R, MATLAB
-- **Other**: Perl, Lua, Scala
+**Web Development:**
+
+- `javascript` (.js, .mjs, .cjs)
+- `typescript` (.ts, .tsx)
+- `php` (.php, .phtml)
+
+**Backend & Systems:**
+
+- `python` (.py, .pyw, .pyi)
+- `java` (.java, .class, .jar)
+- `csharp` (.cs, .csx)
+- `go` (.go)
+- `ruby` (.rb, .rbw)
+- `rust` (.rs)
+- `c` (.c, .h)
+- `cpp` (.cpp, .hpp, .cc, .h)
+
+**Mobile Development:**
+
+- `swift` (.swift)
+- `kotlin` (.kt, .kts)
+- `dart` (.dart)
+- `objc` (.m, .h)
+
+**Scripting & Shell:**
+
+- `shell` (.sh, .bash, .zsh)
+- `powershell` (.ps1, .psm1)
+- `perl` (.pl, .pm)
+- `lua` (.lua)
+
+**Data & Analytics:**
+
+- `sql` (.sql)
+- `r` (.r, .R)
+- `matlab` (.m)
+
+**Other Languages:**
+
+- `scala` (.scala, .sc)
+
+**Usage Examples:**
+
+```bash
+# Scan only Python files
+./seekr secrets --path . --language python
+
+# Scan multiple languages
+./seekr secrets --path . --language python,javascript,go
+
+# Scan all supported languages
+./seekr secrets --path . --language all
+```
 
 Use `--language all` or omit the language flag to scan all supported file types.
 

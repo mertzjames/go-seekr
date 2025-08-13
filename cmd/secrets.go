@@ -1,5 +1,5 @@
 /*
-Copyright © 2025 NAME HERE <EMAIL ADDRESS>
+Copyright © 2025 James Mertz
 */
 package cmd
 
@@ -17,10 +17,15 @@ import (
 	"github.com/spf13/cobra"
 )
 
+// TODO: Update individual functions to be called with params first
+// instead of calling the flags.  Only within the secretsCmd function should
+// these be set
 var FLAG_SCAN_PATH string
 var FLAG_INCLUDE_BINARY bool
 var FLAG_INCLUDE_ALL bool
 var FLAG_LANGUAGE string
+var FLAG_ADDL_VARS string
+var FLAG_USR_REGEX string
 
 var languageExtensions = map[string][]string{
 	// Top 20 languages according to Google Gemini 2.5 Pro
@@ -45,10 +50,13 @@ var languageExtensions = map[string][]string{
 	"scala":      {".scala", ".sc"},
 	"matlab":     {".m"},
 
-	// Additional Languages Supported
+	// Additional Languages/file types Supported
 	"c":          {".c", ".h"},
 	"shell":      {".sh", ".bash", ".zsh"},
 	"powershell": {".ps1", ".psm1"},
+	"yaml":       {".yaml", ".yml"},
+	"xml":        {".xml"},
+	"json":       {".json"},
 }
 
 var secretsCmd = &cobra.Command{
@@ -62,7 +70,7 @@ provided, it will scan all files within that folder.`,
 			fmt.Println("[WARN]    The --binary_check flag is only effective when the --all_files flag is also set.")
 			fmt.Println("[WARN]      It will be ignored.")
 		} else if FLAG_INCLUDE_BINARY && FLAG_INCLUDE_ALL {
-			fmt.Println("[WARN]    Scanning binary files only scans for embedded text based secrets and can take a long ")
+			fmt.Println("[WARN]    Scanning binary files only scans for embedded text based secrets and can take a long")
 			fmt.Println("[WARN]      time to process files.  Scanning binaries may also result in system instability.")
 		}
 
@@ -92,6 +100,8 @@ provided, it will scan all files within that folder.`,
 
 		// fmt.Println("[DEBG]    Selected file extensions for scanning:", selectedExtensions)
 
+		// TODO: Consider the case of processing a single file but isn't directly supported/is a binary file
+		//  should we force the processing or alert the user that it won't do anything?
 		err := filepath.WalkDir(FLAG_SCAN_PATH, func(path string, d fs.DirEntry, err error) error {
 			if err != nil {
 				return fmt.Errorf("[FATAL] accessing path %q: %v", path, err)
@@ -118,9 +128,11 @@ func init() {
 	secretsCmd.Flags().BoolVarP(&FLAG_INCLUDE_BINARY, "binary_check", "b", false, "Include binary files in the scan.")
 	secretsCmd.Flags().StringVarP(&FLAG_LANGUAGE, "language", "l", "", "The programming language to scan for secrets. If not specified, or 'all' is provided then all supported languages will be scanned.")
 	secretsCmd.Flags().BoolVarP(&FLAG_INCLUDE_ALL, "all_files", "a", false, "Include all files in the scan, regardless of file extension.  This overrides the language flag.")
+	secretsCmd.Flags().StringVarP(&FLAG_ADDL_VARS, "vars", "v", "", "Comma-separated list of additional variables to include in the scan.")
+	secretsCmd.Flags().StringVarP(&FLAG_USR_REGEX, "regex_str", "r", "", "User-defined regular expression for matching custom/unsupported secrets.")
 }
 
-// contains checks if a value exists in a slice of any comparable type.
+// contains: checks if a value exists in a slice of any comparable type.
 func contains[T comparable](slice []T, value T) bool {
 	for _, item := range slice {
 		if item == value {
@@ -130,9 +142,11 @@ func contains[T comparable](slice []T, value T) bool {
 	return false
 }
 
+// processFile: processes a file based on its type (binary or text) and the selected extensions.
 func processFile(filePath string, selectedExtensions []string) {
 	is_text := checkIfText(filePath)
 	if is_text {
+		// process file only if with selected extensions OR if all_files is set
 		ext := filepath.Ext(filePath)
 		if contains(selectedExtensions, ext) || FLAG_INCLUDE_ALL {
 			fmt.Println("[INFO]    Scanning file:", filePath)
@@ -146,7 +160,8 @@ func processFile(filePath string, selectedExtensions []string) {
 			// fmt.Println("[DEBG]    Skipping file due to unselected/unsupported extension:", ext)
 		}
 
-		// only scan binary files if we have the "all_files" flag set as well
+		// only scan binary files if we have the "all_files" and binary_check
+		// flags set
 	} else if FLAG_INCLUDE_ALL && FLAG_INCLUDE_BINARY {
 		content, err := os.ReadFile(filePath)
 		if err != nil {
@@ -159,6 +174,7 @@ func processFile(filePath string, selectedExtensions []string) {
 
 }
 
+// checkIfText: checks if a file is a text file based on its content.
 func checkIfText(filePath string) bool {
 	file, err := os.Open(filePath)
 
@@ -195,6 +211,7 @@ func checkIfText(filePath string) bool {
 	return is_text
 }
 
+// checkForVulnVars: checks for vulnerable variables in the given content.
 func checkForVulnVars(content string) bool {
 	// "Borrowed" from LinPEAS script: https://github.com/peass-ng/PEASS-ng/blob/master/linPEAS/builder/linpeas_parts/variables/pwd_in_variables.sh
 	vuln_vars := "Dgpg.passphrase|Dsonar.login|Dsonar.projectKey|GITHUB_TOKEN|HB_CODESIGN_GPG_PASS|HB_CODESIGN_KEY_PASS|PUSHOVER_TOKEN|PUSHOVER_USER|VIRUSTOTAL_APIKEY|ACCESSKEY|ACCESSKEYID|ACCESS_KEY|ACCESS_KEY_ID|ACCESS_KEY_SECRET|ACCESS_SECRET|ACCESS_TOKEN|ACCOUNT_SID|ADMIN_EMAIL|ADZERK_API_KEY|ALGOLIA_ADMIN_KEY_1|ALGOLIA_ADMIN_KEY_2|ALGOLIA_ADMIN_KEY_MCM|ALGOLIA_API_KEY|ALGOLIA_API_KEY_MCM|ALGOLIA_API_KEY_SEARCH|ALGOLIA_APPLICATION_ID|ALGOLIA_APPLICATION_ID_1|ALGOLIA_APPLICATION_ID_2|ALGOLIA_APPLICATION_ID_MCM|ALGOLIA_APP_ID|ALGOLIA_APP_ID_MCM|ALGOLIA_SEARCH_API_KEY|ALGOLIA_SEARCH_KEY|ALGOLIA_SEARCH_KEY_1|ALIAS_NAME|ALIAS_PASS|ALICLOUD_ACCESS_KEY|ALICLOUD_SECRET_KEY|amazon_bucket_name|AMAZON_SECRET_ACCESS_KEY|ANDROID_DOCS_DEPLOY_TOKEN|android_sdk_license|android_sdk_preview_license|aos_key|aos_sec|APIARY_API_KEY|APIGW_ACCESS_TOKEN|API_KEY|API_KEY_MCM|API_KEY_SECRET|API_KEY_SID|API_SECRET|appClientSecret|APP_BUCKET_PERM|APP_NAME|APP_REPORT_TOKEN_KEY|APP_TOKEN|ARGOS_TOKEN|ARTIFACTORY_KEY|ARTIFACTS_AWS_ACCESS_KEY_ID|ARTIFACTS_AWS_SECRET_ACCESS_KEY|ARTIFACTS_BUCKET|ARTIFACTS_KEY|ARTIFACTS_SECRET|ASSISTANT_IAM_APIKEY|AURORA_STRING_URL|AUTH0_API_CLIENTID|AUTH0_API_CLIENTSECRET|AUTH0_AUDIENCE|AUTH0_CALLBACK_URL|AUTH0_CLIENT_ID"
@@ -209,14 +226,36 @@ func checkForVulnVars(content string) bool {
 	vuln_vars += "|SPA_CLIENT_ID|SPOTIFY_API_ACCESS_TOKEN|SPOTIFY_API_CLIENT_ID|SPOTIFY_API_CLIENT_SECRET|sqsAccessKey|sqsSecretKey|SRCCLR_API_TOKEN|SSHPASS|SSMTP_CONFIG|STARSHIP_ACCOUNT_SID|STARSHIP_AUTH_TOKEN|STAR_TEST_AWS_ACCESS_KEY_ID|STAR_TEST_BUCKET|STAR_TEST_LOCATION|STAR_TEST_SECRET_ACCESS_KEY|STORMPATH_API_KEY_ID|STORMPATH_API_KEY_SECRET|STRIPE_PRIVATE|STRIPE_PUBLIC|STRIP_PUBLISHABLE_KEY|STRIP_SECRET_KEY|SURGE_LOGIN|SURGE_TOKEN|SVN_PASS|SVN_USER|TESCO_API_KEY|THERA_OSS_ACCESS_ID|THERA_OSS_ACCESS_KEY|TRAVIS_ACCESS_TOKEN|TRAVIS_API_TOKEN|TRAVIS_COM_TOKEN|TRAVIS_E2E_TOKEN|TRAVIS_GH_TOKEN|TRAVIS_PULL_REQUEST|TRAVIS_SECURE_ENV_VARS|TRAVIS_TOKEN|TREX_CLIENT_ORGURL|TREX_CLIENT_TOKEN|TREX_OKTA_CLIENT_ORGURL|TREX_OKTA_CLIENT_TOKEN|TWILIO_ACCOUNT_ID|TWILIO_ACCOUNT_SID|TWILIO_API_KEY|TWILIO_API_SECRET|TWILIO_CHAT_ACCOUNT_API_SERVICE|TWILIO_CONFIGURATION_SID|TWILIO_SID|TWILIO_TOKEN|TWITTEROAUTHACCESSSECRET|TWITTEROAUTHACCESSTOKEN|TWITTER_CONSUMER_KEY|TWITTER_CONSUMER_SECRET|UNITY_SERIAL|URBAN_KEY|URBAN_MASTER_SECRET|URBAN_SECRET|userTravis|USER_ASSETS_ACCESS_KEY_ID|USER_ASSETS_SECRET_ACCESS_KEY|VAULT_APPROLE_SECRET_ID|VAULT_PATH|VIP_GITHUB_BUILD_REPO_DEPLOY_KEY|VIP_GITHUB_DEPLOY_KEY|VIP_GITHUB_DEPLOY_KEY_PASS"
 	vuln_vars += "|VIRUSTOTAL_APIKEY|VISUAL_RECOGNITION_API_KEY|V_SFDC_CLIENT_ID|V_SFDC_CLIENT_SECRET|WAKATIME_API_KEY|WAKATIME_PROJECT|WATSON_CLIENT|WATSON_CONVERSATION_WORKSPACE|WATSON_DEVICE|WATSON_DEVICE_TOPIC|WATSON_TEAM_ID|WATSON_TOPIC|WIDGET_BASIC_USER_2|WIDGET_BASIC_USER_3|WIDGET_BASIC_USER_4|WIDGET_BASIC_USER_5|WIDGET_FB_USER|WIDGET_FB_USER_2|WIDGET_FB_USER_3|WIDGET_TEST_SERVERWORDPRESS_DB_USER|WORKSPACE_ID|WPJM_PHPUNIT_GOOGLE_GEOCODE_API_KEY|WPT_DB_HOST|WPT_DB_NAME|WPT_DB_USER|WPT_PREPARE_DIR|WPT_REPORT_API_KEY|WPT_SSH_CONNECT|WPT_SSH_PRIVATE_KEY_BASE64|YANGSHUN_GH_TOKEN|YT_ACCOUNT_CHANNEL_ID|YT_ACCOUNT_CLIENT_ID|YT_ACCOUNT_CLIENT_SECRET|YT_ACCOUNT_REFRESH_TOKEN|YT_API_KEY|YT_CLIENT_ID|YT_CLIENT_SECRET|YT_PARTNER_CHANNEL_ID|YT_PARTNER_CLIENT_ID|YT_PARTNER_CLIENT_SECRET|YT_PARTNER_ID|YT_PARTNER_REFRESH_TOKEN|YT_SERVER_API_KEY|ZHULIANG_GH_TOKEN|ZOPIM_ACCOUNT_KEY"
 
+	// checking for Private SSH Key content
+	vuln_vars += "|(?s)-----BEGIN (.+?) KEY-----\\s*(.+?)\\s*-----END (.+?) KEY-----"
+
 	vuln_reg := "(" + vuln_vars + ")(.*)"
 
-	re, err := regexp.Compile(vuln_reg)
+	re, err := regexp.Compile("(?i)" + vuln_reg)
 	if err != nil {
 		log.Fatal(err)
 	}
 
 	matches := re.FindAllStringSubmatchIndex(content, -1)
+
+	// find matches according to the user defined variables and append them
+	// to the matches array
+	if FLAG_ADDL_VARS != "" {
+		usr_vars := strings.Join(strings.Split(FLAG_ADDL_VARS, ","), "|")
+		usr_vars_re, err := regexp.Compile("(?i)(" + usr_vars + ")(.*)")
+		if err != nil {
+			log.Fatal(err)
+		}
+		matches = append(matches, usr_vars_re.FindAllStringSubmatchIndex(content, -1)...)
+	}
+
+	if FLAG_USR_REGEX != "" {
+		usr_regex_re, err := regexp.Compile("(?i)(" + FLAG_USR_REGEX + ")(.*)")
+		if err != nil {
+			log.Fatal(err)
+		}
+		matches = append(matches, usr_regex_re.FindAllStringSubmatchIndex(content, -1)...)
+	}
 
 	if matches == nil {
 		fmt.Println("[INFO]    No vulnerable variables found.")
@@ -236,10 +275,14 @@ func checkForVulnVars(content string) bool {
 	}
 }
 
+// isPrintable: checks if a byte is printable.
 func isPrintable(b byte) bool {
 	return (b >= 32 && b <= 126) || b == '\n' || b == '\r' || b == '\t'
 }
 
+// checkForVulnVarsBinary: checks for vulnerable variables in binary content.
+//
+//	effectively the same as using the linux command `strings` on a binary file
 func checkForVulnVarsBinary(content []byte) bool {
 	const minLen = 4
 
