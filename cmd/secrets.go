@@ -58,6 +58,14 @@ var secretsCmd = &cobra.Command{
 provided, it will scan all files within that folder.`,
 	Run: func(cmd *cobra.Command, args []string) {
 
+		if FLAG_INCLUDE_BINARY && !FLAG_INCLUDE_ALL {
+			fmt.Println("[WARN]    The --binary_check flag is only effective when the --all_files flag is also set.")
+			fmt.Println("[WARN]      It will be ignored.")
+		} else if FLAG_INCLUDE_BINARY && FLAG_INCLUDE_ALL {
+			fmt.Println("[WARN]    Scanning binary files only scans for embedded text based secrets and can take a long ")
+			fmt.Println("[WARN]      time to process files.  Scanning binaries may also result in system instability.")
+		}
+
 		selectedExtensions := []string{}
 		selectedLanguages := strings.Split(FLAG_LANGUAGE, ",")
 
@@ -137,12 +145,15 @@ func processFile(filePath string, selectedExtensions []string) {
 		} else {
 			// fmt.Println("[DEBG]    Skipping file due to unselected/unsupported extension:", ext)
 		}
+
+		// only scan binary files if we have the "all_files" flag set as well
 	} else if FLAG_INCLUDE_ALL && FLAG_INCLUDE_BINARY {
 		content, err := os.ReadFile(filePath)
 		if err != nil {
 			fmt.Println("[ERROR] Unable to read file:", filePath, err)
 			return
 		}
+		fmt.Println("[INFO]    Scanning binary file:", filePath)
 		checkForVulnVarsBinary(content)
 	}
 
