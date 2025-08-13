@@ -17,6 +17,9 @@ import (
 	"github.com/spf13/cobra"
 )
 
+// TODO: Update individual functions to be called with params first
+// instead of calling the flags.  Only within the secretsCmd function should
+// these be set
 var FLAG_SCAN_PATH string
 var FLAG_INCLUDE_BINARY bool
 var FLAG_INCLUDE_ALL bool
@@ -47,10 +50,13 @@ var languageExtensions = map[string][]string{
 	"scala":      {".scala", ".sc"},
 	"matlab":     {".m"},
 
-	// Additional Languages Supported
+	// Additional Languages/file types Supported
 	"c":          {".c", ".h"},
 	"shell":      {".sh", ".bash", ".zsh"},
 	"powershell": {".ps1", ".psm1"},
+	"yaml":       {".yaml", ".yml"},
+	"xml":        {".xml"},
+	"json":       {".json"},
 }
 
 var secretsCmd = &cobra.Command{
@@ -94,6 +100,8 @@ provided, it will scan all files within that folder.`,
 
 		// fmt.Println("[DEBG]    Selected file extensions for scanning:", selectedExtensions)
 
+		// TODO: Consider the case of processing a single file but isn't directly supported/is a binary file
+		//  should we force the processing or alert the user that it won't do anything?
 		err := filepath.WalkDir(FLAG_SCAN_PATH, func(path string, d fs.DirEntry, err error) error {
 			if err != nil {
 				return fmt.Errorf("[FATAL] accessing path %q: %v", path, err)
@@ -124,7 +132,7 @@ func init() {
 	secretsCmd.Flags().StringVarP(&FLAG_USR_REGEX, "regex_str", "r", "", "User-defined regular expression for matching custom/unsupported secrets.")
 }
 
-// contains checks if a value exists in a slice of any comparable type.
+// contains: checks if a value exists in a slice of any comparable type.
 func contains[T comparable](slice []T, value T) bool {
 	for _, item := range slice {
 		if item == value {
@@ -134,9 +142,11 @@ func contains[T comparable](slice []T, value T) bool {
 	return false
 }
 
+// processFile: processes a file based on its type (binary or text) and the selected extensions.
 func processFile(filePath string, selectedExtensions []string) {
 	is_text := checkIfText(filePath)
 	if is_text {
+		// process file only if with selected extensions OR if all_files is set
 		ext := filepath.Ext(filePath)
 		if contains(selectedExtensions, ext) || FLAG_INCLUDE_ALL {
 			fmt.Println("[INFO]    Scanning file:", filePath)
@@ -150,7 +160,8 @@ func processFile(filePath string, selectedExtensions []string) {
 			// fmt.Println("[DEBG]    Skipping file due to unselected/unsupported extension:", ext)
 		}
 
-		// only scan binary files if we have the "all_files" flag set as well
+		// only scan binary files if we have the "all_files" and binary_check
+		// flags set
 	} else if FLAG_INCLUDE_ALL && FLAG_INCLUDE_BINARY {
 		content, err := os.ReadFile(filePath)
 		if err != nil {
@@ -163,6 +174,7 @@ func processFile(filePath string, selectedExtensions []string) {
 
 }
 
+// checkIfText: checks if a file is a text file based on its content.
 func checkIfText(filePath string) bool {
 	file, err := os.Open(filePath)
 
@@ -199,6 +211,7 @@ func checkIfText(filePath string) bool {
 	return is_text
 }
 
+// checkForVulnVars: checks for vulnerable variables in the given content.
 func checkForVulnVars(content string) bool {
 	// "Borrowed" from LinPEAS script: https://github.com/peass-ng/PEASS-ng/blob/master/linPEAS/builder/linpeas_parts/variables/pwd_in_variables.sh
 	vuln_vars := "Dgpg.passphrase|Dsonar.login|Dsonar.projectKey|GITHUB_TOKEN|HB_CODESIGN_GPG_PASS|HB_CODESIGN_KEY_PASS|PUSHOVER_TOKEN|PUSHOVER_USER|VIRUSTOTAL_APIKEY|ACCESSKEY|ACCESSKEYID|ACCESS_KEY|ACCESS_KEY_ID|ACCESS_KEY_SECRET|ACCESS_SECRET|ACCESS_TOKEN|ACCOUNT_SID|ADMIN_EMAIL|ADZERK_API_KEY|ALGOLIA_ADMIN_KEY_1|ALGOLIA_ADMIN_KEY_2|ALGOLIA_ADMIN_KEY_MCM|ALGOLIA_API_KEY|ALGOLIA_API_KEY_MCM|ALGOLIA_API_KEY_SEARCH|ALGOLIA_APPLICATION_ID|ALGOLIA_APPLICATION_ID_1|ALGOLIA_APPLICATION_ID_2|ALGOLIA_APPLICATION_ID_MCM|ALGOLIA_APP_ID|ALGOLIA_APP_ID_MCM|ALGOLIA_SEARCH_API_KEY|ALGOLIA_SEARCH_KEY|ALGOLIA_SEARCH_KEY_1|ALIAS_NAME|ALIAS_PASS|ALICLOUD_ACCESS_KEY|ALICLOUD_SECRET_KEY|amazon_bucket_name|AMAZON_SECRET_ACCESS_KEY|ANDROID_DOCS_DEPLOY_TOKEN|android_sdk_license|android_sdk_preview_license|aos_key|aos_sec|APIARY_API_KEY|APIGW_ACCESS_TOKEN|API_KEY|API_KEY_MCM|API_KEY_SECRET|API_KEY_SID|API_SECRET|appClientSecret|APP_BUCKET_PERM|APP_NAME|APP_REPORT_TOKEN_KEY|APP_TOKEN|ARGOS_TOKEN|ARTIFACTORY_KEY|ARTIFACTS_AWS_ACCESS_KEY_ID|ARTIFACTS_AWS_SECRET_ACCESS_KEY|ARTIFACTS_BUCKET|ARTIFACTS_KEY|ARTIFACTS_SECRET|ASSISTANT_IAM_APIKEY|AURORA_STRING_URL|AUTH0_API_CLIENTID|AUTH0_API_CLIENTSECRET|AUTH0_AUDIENCE|AUTH0_CALLBACK_URL|AUTH0_CLIENT_ID"
@@ -262,10 +275,14 @@ func checkForVulnVars(content string) bool {
 	}
 }
 
+// isPrintable: checks if a byte is printable.
 func isPrintable(b byte) bool {
 	return (b >= 32 && b <= 126) || b == '\n' || b == '\r' || b == '\t'
 }
 
+// checkForVulnVarsBinary: checks for vulnerable variables in binary content.
+//
+//	effectively the same as using the linux command `strings` on a binary file
 func checkForVulnVarsBinary(content []byte) bool {
 	const minLen = 4
 
