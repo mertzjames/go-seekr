@@ -21,6 +21,11 @@ THE SOFTWARE.
 */
 package cmd
 
+import (
+	"os"
+
+	"github.com/spf13/cobra"
+)
 
 const ASCIILogo = `
 ███████╗███████╗███████╗██╗  ██╗██████╗
@@ -32,16 +37,10 @@ const ASCIILogo = `
 Seekr - Vulnerable Variable Scanner
 `
 
-import (
-	"os"
-
-	"github.com/spf13/cobra"
-)
-
 // rootCmd represents the base command when called without any subcommands
 var rootCmd = &cobra.Command{
 	Use:   "seekr",
-	Short: "A brief description of your application",
+	Short: "Seekr - Vulnerable Variable Scanner",
 	Long: `A longer description that spans multiple lines and likely contains
 examples and usage of using your application. For example:
 
