@@ -42,55 +42,125 @@ cd go-seekr
 2. Build the application:
 
 ```bash
-go build -o seekr seekr.go
+go build -o seekr main.go
 ```
 
 ### Using Pre-built Binaries
 
 Pre-built binaries are available in the [latest GitHub release](https://github.com/mertzjames/go-seekr/releases/latest):
 
+**Linux:**
+
 - `seekr-amd64-linux` - Linux AMD64
 - `seekr-arm64-linux` - Linux ARM64
 
+**macOS:**
+
+- `seekr-amd64-darwin` - macOS AMD64 (Intel)
+- `seekr-arm64-darwin` - macOS ARM64 (Apple Silicon)
+
+**Windows:**
+
+- `seekr-amd64-windows.exe` - Windows AMD64
+- `seekr-arm64-windows.exe` - Windows ARM64
+
 Download the appropriate binary for your platform from the release page and make it executable:
+
+**Linux/macOS:**
 
 ```bash
 chmod +x seekr-amd64-linux
 ./seekr-amd64-linux
 ```
 
+**Windows:**
+
+```cmd
+seekr-amd64-windows.exe
+```
+
 ## Usage
+
+The application now uses a command-based interface with subcommands for different scanning operations.
+
+### Available Commands
+
+- `secrets` - Scan for secrets and vulnerable variables in files
 
 ### Basic Usage
 
-Scan the current directory:
+Scan the current directory for secrets supporting the most common programming language source files:
 
 ```bash
-./seekr
+./seekr secrets
 ```
 
 Scan a specific directory:
 
 ```bash
-./seekr -path /path/to/your/project
+./seekr secrets --path /path/to/your/project
 ```
 
-### Command-line Options
+Scan only specific programming languages:
 
-- `-path` : Specifies the path to scan (default: current directory ".")
+```bash
+./seekr secrets --path /path/to/your/project --language python,javascript
+```
+
+Scan all text based files:
+
+```bash
+./seekr secrets --path /path/to/your/project --all_files
+```
+
+Scan all files including binary files:
+
+```bash
+./seekr secrets --path /path/to/your/project --all_files --binary_check
+```
+
+### Command-line Options for `secrets` command
+
+- `-p, --path` : Specifies the path to scan (default: current directory ".")
+- `-l, --language` : Programming language(s) to scan for secrets. Comma-separated list or "all" for all languages
+- `-a, --all_files` : Include all files in the scan, regardless of file extension (overrides language flag)
+- `-b, --binary_check` : Include binary files in the scan (only effective when used with --all_files)
+
+### ⚠️ Binary File Scanning Warning
+
+**Important**: When using the `--binary_check` flag, be aware of the following potential issues:
+
+- **Performance Impact**: Scanning binary files can significantly slow down the scanning process, especially for large files
+- **System Instability**: Processing certain binary files may cause system instability or unexpected behavior
+- **High Memory Usage**: Large binary files can consume substantial memory during text extraction
+- **False Positives**: Binary files may contain byte sequences that match secret patterns but are not actual secrets
+- **Limited Effectiveness**: The tool only scans for embedded text-based secrets within binary files
+
+**Recommendation**: Use binary file scanning sparingly and only when necessary. Consider excluding large binary files or known safe binaries from your scan path.
+
+### Supported Languages
+
+The tool supports scanning files for the following programming languages:
+
+- **Web**: JavaScript, TypeScript, PHP, HTML
+- **Backend**: Python, Java, C#, Go, Ruby, Rust
+- **Mobile**: Swift, Kotlin, Dart, Objective-C
+- **Systems**: C, C++, Shell scripts, PowerShell
+- **Data**: SQL, R, MATLAB
+- **Other**: Perl, Lua, Scala
+
+Use `--language all` or omit the language flag to scan all supported file types.
 
 ### Example Output
 
 ```text
-[INFO]  Scanning for potentially vulnerable variables in files under: /path/to/project
-[INFO]  Scanning file:  /path/to/project/config.py
+[INFO]    Scanning directory: /path/to/project
+[INFO]    Scanning file: /path/to/project/config.py
 [VULN]    Found the following potential vulnerable variables:
 [VULN]      - 005: AWS_ACCESS_KEY_ID=AKIAIOSFODNN7EXAMPLE
 [VULN]      - 006: AWS_SECRET_ACCESS_KEY=wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY
-[VULN]  Potentially vulnerable variables found in /path/to/project/config.py
-[INFO]  Scanning file:  /path/to/project/deploy.sh
+[INFO]    Scanning file: /path/to/project/deploy.sh
 [INFO]    No vulnerable variables found.
-[INFO]  Scan completed successfully.
 ```
 
 ## What It Detects

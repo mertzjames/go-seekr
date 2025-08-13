@@ -1,29 +1,201 @@
-// TODO: Add the ability to add custom detections
-
-package main
+/*
+Copyright © 2025 NAME HERE <EMAIL ADDRESS>
+*/
+package cmd
 
 import (
-	"flag"
+	"bytes"
 	"fmt"
 	"io/fs"
 	"log"
+	"net/http"
 	"os"
 	"path/filepath"
 	"regexp"
 	"strings"
+
+	"github.com/spf13/cobra"
 )
 
-const ASCIILogo = `
-███████╗███████╗███████╗██╗  ██╗██████╗
-██╔════╝██╔════╝██╔════╝██║ ██╔╝██╔══██╗
-███████╗███████╗███████╗█████╔╝ ██████╔╝
-╚════██║██╚════║██╚════║██╔═██╗ ██╔══██═╗
-███████║███████║███████║██║  ██╗██╚═══██║
-╚══════╝╚══════╝╚══════╝╚═╝  ╚═╝╚═══════╝
-Seekr - Vulnerable Variable Scanner
-`
+var FLAG_SCAN_PATH string
+var FLAG_INCLUDE_BINARY bool
+var FLAG_INCLUDE_ALL bool
+var FLAG_LANGUAGE string
 
-func containsVulnVars(content string) bool {
+var languageExtensions = map[string][]string{
+	// Top 20 languages according to Google Gemini 2.5 Pro
+	"javascript": {".js", ".mjs", ".cjs"},
+	"python":     {".py", ".pyw", ".pyi"},
+	"java":       {".java", ".class", ".jar"},
+	"typescript": {".ts", ".tsx"},
+	"csharp":     {".cs", ".csx"},
+	"cpp":        {".cpp", ".hpp", ".cc", ".h"},
+	"php":        {".php", ".phtml"},
+	"go":         {".go"},
+	"swift":      {".swift"},
+	"ruby":       {".rb", ".rbw"},
+	"kotlin":     {".kt", ".kts"},
+	"rust":       {".rs"},
+	"sql":        {".sql"},
+	"r":          {".r", ".R"},
+	"perl":       {".pl", ".pm"},
+	"lua":        {".lua"},
+	"objc":       {".m", ".h"},
+	"dart":       {".dart"},
+	"scala":      {".scala", ".sc"},
+	"matlab":     {".m"},
+
+	// Additional Languages Supported
+	"c":          {".c", ".h"},
+	"shell":      {".sh", ".bash", ".zsh"},
+	"powershell": {".ps1", ".psm1"},
+}
+
+var secretsCmd = &cobra.Command{
+	Use:   "secrets",
+	Short: "Recursively scan for secrets in file(s)",
+	Long: `Scans file(s) recursively for secrets found within.  If a folder is
+provided, it will scan all files within that folder.`,
+	Run: func(cmd *cobra.Command, args []string) {
+
+		if FLAG_INCLUDE_BINARY && !FLAG_INCLUDE_ALL {
+			fmt.Println("[WARN]    The --binary_check flag is only effective when the --all_files flag is also set.")
+			fmt.Println("[WARN]      It will be ignored.")
+		} else if FLAG_INCLUDE_BINARY && FLAG_INCLUDE_ALL {
+			fmt.Println("[WARN]    Scanning binary files only scans for embedded text based secrets and can take a long ")
+			fmt.Println("[WARN]      time to process files.  Scanning binaries may also result in system instability.")
+		}
+
+		selectedExtensions := []string{}
+		selectedLanguages := strings.Split(FLAG_LANGUAGE, ",")
+
+		// fmt.Println("[DEBG]    Selected languages for scanning:", selectedLanguages)
+
+		// If nothing or all is provided, even with a list of other languages, just
+		// include all supported languages.  Otherwise add all extensions that were
+		// selected by the user
+		if FLAG_LANGUAGE == "" || contains(selectedLanguages, "all") {
+			for _, ext := range languageExtensions {
+				selectedExtensions = append(selectedExtensions, ext...)
+			}
+		} else {
+			for _, lang := range selectedLanguages {
+				if extensions, ok := languageExtensions[lang]; ok {
+					selectedExtensions = append(selectedExtensions, extensions...)
+				} else if lang == "all" {
+					for _, ext := range languageExtensions {
+						selectedExtensions = append(selectedExtensions, ext...)
+					}
+				}
+			}
+		}
+
+		// fmt.Println("[DEBG]    Selected file extensions for scanning:", selectedExtensions)
+
+		err := filepath.WalkDir(FLAG_SCAN_PATH, func(path string, d fs.DirEntry, err error) error {
+			if err != nil {
+				return fmt.Errorf("[FATAL] accessing path %q: %v", path, err)
+			}
+			if !d.IsDir() {
+				// fmt.Println("[DEBG]    Processing file:", path)
+				processFile(path, selectedExtensions)
+			} else {
+				fmt.Println("[INFO]    Scanning directory:", path)
+			}
+			return nil
+		})
+		if err != nil {
+			log.Fatal(err)
+		}
+	},
+}
+
+func init() {
+	rootCmd.AddCommand(secretsCmd)
+
+	// Flag definitions for secrets command
+	secretsCmd.Flags().StringVarP(&FLAG_SCAN_PATH, "path", "p", ".", "The path to the file or directory to scan.")
+	secretsCmd.Flags().BoolVarP(&FLAG_INCLUDE_BINARY, "binary_check", "b", false, "Include binary files in the scan.")
+	secretsCmd.Flags().StringVarP(&FLAG_LANGUAGE, "language", "l", "", "The programming language to scan for secrets. If not specified, or 'all' is provided then all supported languages will be scanned.")
+	secretsCmd.Flags().BoolVarP(&FLAG_INCLUDE_ALL, "all_files", "a", false, "Include all files in the scan, regardless of file extension.  This overrides the language flag.")
+}
+
+// contains checks if a value exists in a slice of any comparable type.
+func contains[T comparable](slice []T, value T) bool {
+	for _, item := range slice {
+		if item == value {
+			return true
+		}
+	}
+	return false
+}
+
+func processFile(filePath string, selectedExtensions []string) {
+	is_text := checkIfText(filePath)
+	if is_text {
+		ext := filepath.Ext(filePath)
+		if contains(selectedExtensions, ext) || FLAG_INCLUDE_ALL {
+			fmt.Println("[INFO]    Scanning file:", filePath)
+			content, err := os.ReadFile(filePath)
+			if err != nil {
+				fmt.Println("[ERROR] Unable to read file:", filePath, err)
+				return
+			}
+			checkForVulnVars(string(content))
+		} else {
+			// fmt.Println("[DEBG]    Skipping file due to unselected/unsupported extension:", ext)
+		}
+
+		// only scan binary files if we have the "all_files" flag set as well
+	} else if FLAG_INCLUDE_ALL && FLAG_INCLUDE_BINARY {
+		content, err := os.ReadFile(filePath)
+		if err != nil {
+			fmt.Println("[ERROR] Unable to read file:", filePath, err)
+			return
+		}
+		fmt.Println("[INFO]    Scanning binary file:", filePath)
+		checkForVulnVarsBinary(content)
+	}
+
+}
+
+func checkIfText(filePath string) bool {
+	file, err := os.Open(filePath)
+
+	// Skip files that cannot be opened but alert the user
+	if err != nil {
+		fmt.Println("[ERROR] Unable to open file:", filePath, err)
+		return false
+	}
+	defer file.Close()
+
+	buf := make([]byte, 512)
+	n, err := file.Read(buf[:])
+
+	// Skip files that cannot be read but alert the user
+	if err != nil {
+		fmt.Println("[ERROR] Unable to read file:", filePath, err)
+		return false
+	}
+
+	// Use the http module to automatically detect the file type
+	contentType := http.DetectContentType(buf[:n])
+
+	// We assume that all of these are text based.  Anything other than that is
+	// assumed to be binary files and will be processed as such
+	assumedTextTypes := []string{"text/", "application/json", "application/xml", "application/yaml", "application/sql"}
+	is_text := false
+	for _, t := range assumedTextTypes {
+		if strings.HasPrefix(contentType, t) {
+			is_text = true
+			break
+		}
+	}
+
+	return is_text
+}
+
+func checkForVulnVars(content string) bool {
 	// "Borrowed" from LinPEAS script: https://github.com/peass-ng/PEASS-ng/blob/master/linPEAS/builder/linpeas_parts/variables/pwd_in_variables.sh
 	vuln_vars := "Dgpg.passphrase|Dsonar.login|Dsonar.projectKey|GITHUB_TOKEN|HB_CODESIGN_GPG_PASS|HB_CODESIGN_KEY_PASS|PUSHOVER_TOKEN|PUSHOVER_USER|VIRUSTOTAL_APIKEY|ACCESSKEY|ACCESSKEYID|ACCESS_KEY|ACCESS_KEY_ID|ACCESS_KEY_SECRET|ACCESS_SECRET|ACCESS_TOKEN|ACCOUNT_SID|ADMIN_EMAIL|ADZERK_API_KEY|ALGOLIA_ADMIN_KEY_1|ALGOLIA_ADMIN_KEY_2|ALGOLIA_ADMIN_KEY_MCM|ALGOLIA_API_KEY|ALGOLIA_API_KEY_MCM|ALGOLIA_API_KEY_SEARCH|ALGOLIA_APPLICATION_ID|ALGOLIA_APPLICATION_ID_1|ALGOLIA_APPLICATION_ID_2|ALGOLIA_APPLICATION_ID_MCM|ALGOLIA_APP_ID|ALGOLIA_APP_ID_MCM|ALGOLIA_SEARCH_API_KEY|ALGOLIA_SEARCH_KEY|ALGOLIA_SEARCH_KEY_1|ALIAS_NAME|ALIAS_PASS|ALICLOUD_ACCESS_KEY|ALICLOUD_SECRET_KEY|amazon_bucket_name|AMAZON_SECRET_ACCESS_KEY|ANDROID_DOCS_DEPLOY_TOKEN|android_sdk_license|android_sdk_preview_license|aos_key|aos_sec|APIARY_API_KEY|APIGW_ACCESS_TOKEN|API_KEY|API_KEY_MCM|API_KEY_SECRET|API_KEY_SID|API_SECRET|appClientSecret|APP_BUCKET_PERM|APP_NAME|APP_REPORT_TOKEN_KEY|APP_TOKEN|ARGOS_TOKEN|ARTIFACTORY_KEY|ARTIFACTS_AWS_ACCESS_KEY_ID|ARTIFACTS_AWS_SECRET_ACCESS_KEY|ARTIFACTS_BUCKET|ARTIFACTS_KEY|ARTIFACTS_SECRET|ASSISTANT_IAM_APIKEY|AURORA_STRING_URL|AUTH0_API_CLIENTID|AUTH0_API_CLIENTSECRET|AUTH0_AUDIENCE|AUTH0_CALLBACK_URL|AUTH0_CLIENT_ID"
 	vuln_vars += "|AUTH0_CLIENT_SECRET|AUTH0_CONNECTION|AUTH0_DOMAIN|AUTHOR_EMAIL_ADDR|AUTHOR_NPM_API_KEY|AUTH_TOKEN|AWS-ACCT-ID|AWS-KEY|AWS-SECRETS|AWS.config.accessKeyId|AWS.config.secretAccessKey|AWSACCESSKEYID|AWSCN_ACCESS_KEY_ID|AWSCN_SECRET_ACCESS_KEY|AWSSECRETKEY|AWS_ACCESS|AWS_ACCESS_KEY|AWS_ACCESS_KEY_ID|AWS_CF_DIST_ID|AWS_DEFAULT|AWS_DEFAULT_REGION|AWS_S3_BUCKET|AWS_SECRET|AWS_SECRET_ACCESS_KEY|AWS_SECRET_KEY|AWS_SES_ACCESS_KEY_ID|AWS_SES_SECRET_ACCESS_KEY|B2_ACCT_ID|B2_APP_KEY|B2_BUCKET|baseUrlTravis|bintrayKey|bintrayUser|BINTRAY_APIKEY|BINTRAY_API_KEY|BINTRAY_KEY|BINTRAY_TOKEN|BINTRAY_USER|BLUEMIX_ACCOUNT|BLUEMIX_API_KEY|BLUEMIX_AUTH|BLUEMIX_NAMESPACE|BLUEMIX_ORG|BLUEMIX_ORGANIZATION|BLUEMIX_PASS|BLUEMIX_PASS_PROD|BLUEMIX_SPACE|BLUEMIX_USER|BRACKETS_REPO_OAUTH_TOKEN|BROWSERSTACK_ACCESS_KEY|BROWSERSTACK_PROJECT_NAME|BROWSER_STACK_ACCESS_KEY|BUCKETEER_AWS_ACCESS_KEY_ID|BUCKETEER_AWS_SECRET_ACCESS_KEY|BUCKETEER_BUCKET_NAME|BUILT_BRANCH_DEPLOY_KEY|BUNDLESIZE_GITHUB_TOKEN|CACHE_S3_SECRET_KEY|CACHE_URL|CARGO_TOKEN|CATTLE_ACCESS_KEY|CATTLE_AGENT_INSTANCE_AUTH|CATTLE_SECRET_KEY|CC_TEST_REPORTER_ID|CC_TEST_REPOTER_ID|CENSYS_SECRET|CENSYS_UID|CERTIFICATE_OSX_P12|CF_ORGANIZATION|CF_PROXY_HOST|channelId|CHEVERNY_TOKEN|CHROME_CLIENT_ID"
@@ -64,41 +236,34 @@ func containsVulnVars(content string) bool {
 	}
 }
 
-func main() {
+func isPrintable(b byte) bool {
+	return (b >= 32 && b <= 126) || b == '\n' || b == '\r' || b == '\t'
+}
 
-	pathPtr := flag.String("path", ".", "Path to the Seekr configuration file")
-	flag.Parse()
+func checkForVulnVarsBinary(content []byte) bool {
+	const minLen = 4
 
-	fmt.Println(ASCIILogo)
-
-	fmt.Println("[INFO]  Scanning for potentially vulnerable variables in files under:", *pathPtr)
-
-	err := filepath.WalkDir(*pathPtr, func(path string, d fs.DirEntry, err error) error {
-		if err != nil {
-			return fmt.Errorf("error accessing path %q: %v", path, err)
-		}
-		if !d.IsDir() {
-			content, err := os.ReadFile(path)
-			if err != nil {
-				return fmt.Errorf("error reading file %q: %v", path, err)
-			}
-
-			fmt.Println("[INFO]  Scanning file: ", path)
-
-			// Check for vulnerable variables in the file content
-			if containsVulnVars(string(content)) {
-				fmt.Println("[VULN]  Potentially vulnerable variables found in", path)
-			}
-
-		}
-
-		return nil
-	})
-
-	if err != nil {
-		log.Fatal(err)
+	if len(content) < minLen {
+		fmt.Println("[INFO]    Skipping binary file (too short)")
+		return false
 	}
 
-	println("[INFO]  Scan completed successfully.")
+	var currentString bytes.Buffer
+	var foundStrings []string
+	for _, b := range content {
+		if isPrintable(b) {
+			currentString.WriteByte(b)
+		} else {
+			if currentString.Len() >= minLen {
+				foundStrings = append(foundStrings, currentString.String())
+			}
+			currentString.Reset()
+		}
+	}
 
+	if currentString.Len() >= minLen {
+		foundStrings = append(foundStrings, currentString.String())
+	}
+
+	return checkForVulnVars(strings.Join(foundStrings, ""))
 }
