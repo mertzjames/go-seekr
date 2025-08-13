@@ -1,9 +1,9 @@
-// TODO: Add the ability to add custom detections
-
-package main
+/*
+Copyright © 2025 NAME HERE <EMAIL ADDRESS>
+*/
+package cmd
 
 import (
-	"flag"
 	"fmt"
 	"io/fs"
 	"log"
@@ -11,17 +11,57 @@ import (
 	"path/filepath"
 	"regexp"
 	"strings"
+
+	"github.com/spf13/cobra"
 )
 
-const ASCIILogo = `
-███████╗███████╗███████╗██╗  ██╗██████╗
-██╔════╝██╔════╝██╔════╝██║ ██╔╝██╔══██╗
-███████╗███████╗███████╗█████╔╝ ██████╔╝
-╚════██║██╚════║██╚════║██╔═██╗ ██╔══██═╗
-███████║███████║███████║██║  ██╗██╚═══██║
-╚══════╝╚══════╝╚══════╝╚═╝  ╚═╝╚═══════╝
-Seekr - Vulnerable Variable Scanner
-`
+var scanPath string
+var includeBinary bool
+
+// secretsCmd represents the secrets command
+var secretsCmd = &cobra.Command{
+	Use:   "secrets",
+	Short: "Recursively scan for secrets in file(s)",
+	Long: `Scans file(s) recursively for secrets found within.  If a folder is
+provided, it will scan all files within that folder.`,
+	Run: func(cmd *cobra.Command, args []string) {
+		fmt.Println("secrets called")
+
+		err := filepath.WalkDir(scanPath, func(path string, d fs.DirEntry, err error) error {
+			if err != nil {
+				return fmt.Errorf("error accessing path %q: %v", path, err)
+			}
+			if !d.IsDir() {
+				content, err := os.ReadFile(path)
+				if err != nil {
+					return fmt.Errorf("error reading file %q: %v", path, err)
+				}
+
+				fmt.Println("[INFO]  Scanning file: ", path)
+
+				// Check for vulnerable variables in the file content
+				if containsVulnVars(string(content)) {
+					fmt.Println("[VULN]  Potentially vulnerable variables found in", path)
+				}
+
+			}
+
+			return nil
+		})
+
+		if err != nil {
+			log.Fatal(err)
+		}
+	},
+}
+
+func init() {
+	rootCmd.AddCommand(secretsCmd)
+
+	// Flag definitions for secrets command
+	secretsCmd.Flags().StringVarP(&scanPath, "path", "p", ".", "The path to the file or directory to scan.")
+	secretsCmd.Flags().BoolVarP(&includeBinary, "binary", "b", false, "Include binary files in the scan.")
+}
 
 func containsVulnVars(content string) bool {
 	// "Borrowed" from LinPEAS script: https://github.com/peass-ng/PEASS-ng/blob/master/linPEAS/builder/linpeas_parts/variables/pwd_in_variables.sh
@@ -62,43 +102,4 @@ func containsVulnVars(content string) bool {
 
 		return true
 	}
-}
-
-func main() {
-
-	pathPtr := flag.String("path", ".", "Path to the Seekr configuration file")
-	flag.Parse()
-
-	fmt.Println(ASCIILogo)
-
-	fmt.Println("[INFO]  Scanning for potentially vulnerable variables in files under:", *pathPtr)
-
-	err := filepath.WalkDir(*pathPtr, func(path string, d fs.DirEntry, err error) error {
-		if err != nil {
-			return fmt.Errorf("error accessing path %q: %v", path, err)
-		}
-		if !d.IsDir() {
-			content, err := os.ReadFile(path)
-			if err != nil {
-				return fmt.Errorf("error reading file %q: %v", path, err)
-			}
-
-			fmt.Println("[INFO]  Scanning file: ", path)
-
-			// Check for vulnerable variables in the file content
-			if containsVulnVars(string(content)) {
-				fmt.Println("[VULN]  Potentially vulnerable variables found in", path)
-			}
-
-		}
-
-		return nil
-	})
-
-	if err != nil {
-		log.Fatal(err)
-	}
-
-	println("[INFO]  Scan completed successfully.")
-
 }
