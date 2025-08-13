@@ -4,6 +4,7 @@ Copyright © 2025 NAME HERE <EMAIL ADDRESS>
 package cmd
 
 import (
+	"bytes"
 	"fmt"
 	"io/fs"
 	"log"
@@ -124,21 +125,25 @@ func contains[T comparable](slice []T, value T) bool {
 func processFile(filePath string, selectedExtensions []string) {
 	is_text := checkIfText(filePath)
 	if is_text {
-		content, err := os.ReadFile(filePath)
-		if err != nil {
-			fmt.Println("[ERROR] Unable to read file:", filePath, err)
-			return
-		}
-
 		ext := filepath.Ext(filePath)
 		if contains(selectedExtensions, ext) || FLAG_INCLUDE_ALL {
 			fmt.Println("[INFO]    Scanning file:", filePath)
+			content, err := os.ReadFile(filePath)
+			if err != nil {
+				fmt.Println("[ERROR] Unable to read file:", filePath, err)
+				return
+			}
 			checkForVulnVars(string(content))
 		} else {
 			// fmt.Println("[DEBG]    Skipping file due to unselected/unsupported extension:", ext)
 		}
 	} else if FLAG_INCLUDE_ALL && FLAG_INCLUDE_BINARY {
-		fmt.Println("[TODO]    Implement this")
+		content, err := os.ReadFile(filePath)
+		if err != nil {
+			fmt.Println("[ERROR] Unable to read file:", filePath, err)
+			return
+		}
+		checkForVulnVarsBinary(content)
 	}
 
 }
@@ -218,4 +223,36 @@ func checkForVulnVars(content string) bool {
 
 		return true
 	}
+}
+
+func isPrintable(b byte) bool {
+	return (b >= 32 && b <= 126) || b == '\n' || b == '\r' || b == '\t'
+}
+
+func checkForVulnVarsBinary(content []byte) bool {
+	const minLen = 4
+
+	if len(content) < minLen {
+		fmt.Println("[INFO]    Skipping binary file (too short)")
+		return false
+	}
+
+	var currentString bytes.Buffer
+	var foundStrings []string
+	for _, b := range content {
+		if isPrintable(b) {
+			currentString.WriteByte(b)
+		} else {
+			if currentString.Len() >= minLen {
+				foundStrings = append(foundStrings, currentString.String())
+			}
+			currentString.Reset()
+		}
+	}
+
+	if currentString.Len() >= minLen {
+		foundStrings = append(foundStrings, currentString.String())
+	}
+
+	return checkForVulnVars(strings.Join(foundStrings, ""))
 }
