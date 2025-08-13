@@ -1,5 +1,5 @@
 /*
-Copyright © 2025 NAME HERE <EMAIL ADDRESS>
+Copyright © 2025 James Mertz
 */
 package cmd
 
@@ -21,6 +21,8 @@ var FLAG_SCAN_PATH string
 var FLAG_INCLUDE_BINARY bool
 var FLAG_INCLUDE_ALL bool
 var FLAG_LANGUAGE string
+var FLAG_ADDL_VARS string
+var FLAG_USR_REGEX string
 
 var languageExtensions = map[string][]string{
 	// Top 20 languages according to Google Gemini 2.5 Pro
@@ -62,7 +64,7 @@ provided, it will scan all files within that folder.`,
 			fmt.Println("[WARN]    The --binary_check flag is only effective when the --all_files flag is also set.")
 			fmt.Println("[WARN]      It will be ignored.")
 		} else if FLAG_INCLUDE_BINARY && FLAG_INCLUDE_ALL {
-			fmt.Println("[WARN]    Scanning binary files only scans for embedded text based secrets and can take a long ")
+			fmt.Println("[WARN]    Scanning binary files only scans for embedded text based secrets and can take a long")
 			fmt.Println("[WARN]      time to process files.  Scanning binaries may also result in system instability.")
 		}
 
@@ -118,6 +120,8 @@ func init() {
 	secretsCmd.Flags().BoolVarP(&FLAG_INCLUDE_BINARY, "binary_check", "b", false, "Include binary files in the scan.")
 	secretsCmd.Flags().StringVarP(&FLAG_LANGUAGE, "language", "l", "", "The programming language to scan for secrets. If not specified, or 'all' is provided then all supported languages will be scanned.")
 	secretsCmd.Flags().BoolVarP(&FLAG_INCLUDE_ALL, "all_files", "a", false, "Include all files in the scan, regardless of file extension.  This overrides the language flag.")
+	secretsCmd.Flags().StringVarP(&FLAG_ADDL_VARS, "vars", "v", "", "Comma-separated list of additional variables to include in the scan.")
+	secretsCmd.Flags().StringVarP(&FLAG_USR_REGEX, "regex_str", "r", "", "User-defined regular expression for matching custom/unsupported secrets.")
 }
 
 // contains checks if a value exists in a slice of any comparable type.
@@ -209,14 +213,36 @@ func checkForVulnVars(content string) bool {
 	vuln_vars += "|SPA_CLIENT_ID|SPOTIFY_API_ACCESS_TOKEN|SPOTIFY_API_CLIENT_ID|SPOTIFY_API_CLIENT_SECRET|sqsAccessKey|sqsSecretKey|SRCCLR_API_TOKEN|SSHPASS|SSMTP_CONFIG|STARSHIP_ACCOUNT_SID|STARSHIP_AUTH_TOKEN|STAR_TEST_AWS_ACCESS_KEY_ID|STAR_TEST_BUCKET|STAR_TEST_LOCATION|STAR_TEST_SECRET_ACCESS_KEY|STORMPATH_API_KEY_ID|STORMPATH_API_KEY_SECRET|STRIPE_PRIVATE|STRIPE_PUBLIC|STRIP_PUBLISHABLE_KEY|STRIP_SECRET_KEY|SURGE_LOGIN|SURGE_TOKEN|SVN_PASS|SVN_USER|TESCO_API_KEY|THERA_OSS_ACCESS_ID|THERA_OSS_ACCESS_KEY|TRAVIS_ACCESS_TOKEN|TRAVIS_API_TOKEN|TRAVIS_COM_TOKEN|TRAVIS_E2E_TOKEN|TRAVIS_GH_TOKEN|TRAVIS_PULL_REQUEST|TRAVIS_SECURE_ENV_VARS|TRAVIS_TOKEN|TREX_CLIENT_ORGURL|TREX_CLIENT_TOKEN|TREX_OKTA_CLIENT_ORGURL|TREX_OKTA_CLIENT_TOKEN|TWILIO_ACCOUNT_ID|TWILIO_ACCOUNT_SID|TWILIO_API_KEY|TWILIO_API_SECRET|TWILIO_CHAT_ACCOUNT_API_SERVICE|TWILIO_CONFIGURATION_SID|TWILIO_SID|TWILIO_TOKEN|TWITTEROAUTHACCESSSECRET|TWITTEROAUTHACCESSTOKEN|TWITTER_CONSUMER_KEY|TWITTER_CONSUMER_SECRET|UNITY_SERIAL|URBAN_KEY|URBAN_MASTER_SECRET|URBAN_SECRET|userTravis|USER_ASSETS_ACCESS_KEY_ID|USER_ASSETS_SECRET_ACCESS_KEY|VAULT_APPROLE_SECRET_ID|VAULT_PATH|VIP_GITHUB_BUILD_REPO_DEPLOY_KEY|VIP_GITHUB_DEPLOY_KEY|VIP_GITHUB_DEPLOY_KEY_PASS"
 	vuln_vars += "|VIRUSTOTAL_APIKEY|VISUAL_RECOGNITION_API_KEY|V_SFDC_CLIENT_ID|V_SFDC_CLIENT_SECRET|WAKATIME_API_KEY|WAKATIME_PROJECT|WATSON_CLIENT|WATSON_CONVERSATION_WORKSPACE|WATSON_DEVICE|WATSON_DEVICE_TOPIC|WATSON_TEAM_ID|WATSON_TOPIC|WIDGET_BASIC_USER_2|WIDGET_BASIC_USER_3|WIDGET_BASIC_USER_4|WIDGET_BASIC_USER_5|WIDGET_FB_USER|WIDGET_FB_USER_2|WIDGET_FB_USER_3|WIDGET_TEST_SERVERWORDPRESS_DB_USER|WORKSPACE_ID|WPJM_PHPUNIT_GOOGLE_GEOCODE_API_KEY|WPT_DB_HOST|WPT_DB_NAME|WPT_DB_USER|WPT_PREPARE_DIR|WPT_REPORT_API_KEY|WPT_SSH_CONNECT|WPT_SSH_PRIVATE_KEY_BASE64|YANGSHUN_GH_TOKEN|YT_ACCOUNT_CHANNEL_ID|YT_ACCOUNT_CLIENT_ID|YT_ACCOUNT_CLIENT_SECRET|YT_ACCOUNT_REFRESH_TOKEN|YT_API_KEY|YT_CLIENT_ID|YT_CLIENT_SECRET|YT_PARTNER_CHANNEL_ID|YT_PARTNER_CLIENT_ID|YT_PARTNER_CLIENT_SECRET|YT_PARTNER_ID|YT_PARTNER_REFRESH_TOKEN|YT_SERVER_API_KEY|ZHULIANG_GH_TOKEN|ZOPIM_ACCOUNT_KEY"
 
+	// checking for Private SSH Key content
+	vuln_vars += "|(?s)-----BEGIN (.+?) KEY-----\\s*(.+?)\\s*-----END (.+?) KEY-----"
+
 	vuln_reg := "(" + vuln_vars + ")(.*)"
 
-	re, err := regexp.Compile(vuln_reg)
+	re, err := regexp.Compile("(?i)" + vuln_reg)
 	if err != nil {
 		log.Fatal(err)
 	}
 
 	matches := re.FindAllStringSubmatchIndex(content, -1)
+
+	// find matches according to the user defined variables and append them
+	// to the matches array
+	if FLAG_ADDL_VARS != "" {
+		usr_vars := strings.Join(strings.Split(FLAG_ADDL_VARS, ","), "|")
+		usr_vars_re, err := regexp.Compile("(?i)(" + usr_vars + ")(.*)")
+		if err != nil {
+			log.Fatal(err)
+		}
+		matches = append(matches, usr_vars_re.FindAllStringSubmatchIndex(content, -1)...)
+	}
+
+	if FLAG_USR_REGEX != "" {
+		usr_regex_re, err := regexp.Compile("(?i)(" + FLAG_USR_REGEX + ")(.*)")
+		if err != nil {
+			log.Fatal(err)
+		}
+		matches = append(matches, usr_regex_re.FindAllStringSubmatchIndex(content, -1)...)
+	}
 
 	if matches == nil {
 		fmt.Println("[INFO]    No vulnerable variables found.")
