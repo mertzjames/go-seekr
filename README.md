@@ -21,7 +21,12 @@ The detection patterns are based on the comprehensive list from the [LinPEAS scr
 - **Recursive Directory Scanning**: Scans all files in a specified directory and its subdirectories
 - **Comprehensive Pattern Detection**: Detects over 400 types of potentially sensitive variables
 - **Line Number Reporting**: Shows exact line numbers where potential secrets are found
-- **Simple CLI Interface**: Easy-to-use command-line tool
+- **Custom Variable Support**: Add your own variable names to scan for using the `--vars` flag
+- **Custom Regex Patterns**: Define custom regular expressions for advanced pattern matching
+- **SSH Private Key Detection**: Automatically detects private SSH keys in PEM format
+- **Language-Specific Scanning**: Filter scanning by programming language or file type
+- **Binary File Support**: Optional scanning of binary files with text extraction
+- **Simple CLI Interface**: Easy-to-use command-line tool with intuitive flags
 - **Cross-platform**: Works on Linux, macOS, and Windows
 
 ## Installation
@@ -81,50 +86,60 @@ seekr-amd64-windows.exe
 
 ## Usage
 
-The application now uses a command-based interface with subcommands for different scanning operations.
-
-### Available Commands
-
-- `secrets` - Scan for secrets and vulnerable variables in files
+The application provides a simple command-line interface for scanning files and directories for secrets.
 
 ### Basic Usage
 
 Scan the current directory for secrets supporting the most common programming language source files:
 
 ```bash
-./seekr secrets
+./seekr
 ```
 
 Scan a specific directory:
 
 ```bash
-./seekr secrets --path /path/to/your/project
+./seekr --path /path/to/your/project
 ```
 
 Scan only specific programming languages:
 
 ```bash
-./seekr secrets --path /path/to/your/project --language python,javascript
+./seekr --path /path/to/your/project --language python,javascript
 ```
 
 Scan all text based files:
 
 ```bash
-./seekr secrets --path /path/to/your/project --all_files
+./seekr --path /path/to/your/project --all_files
 ```
 
 Scan all files including binary files:
 
 ```bash
-./seekr secrets --path /path/to/your/project --all_files --binary_check
+./seekr --path /path/to/your/project --all_files --binary_check
 ```
 
-### Command-line Options for `secrets` command
+Scan with custom variables:
+
+```bash
+./seekr --path /path/to/your/project --vars "MY_SECRET_VAR,CUSTOM_API_KEY"
+```
+
+Scan with custom regex pattern:
+
+```bash
+./seekr --path /path/to/your/project --regex_str "secret[_-]?key.*=.*"
+```
+
+### Command-line Options
 
 - `-p, --path` : Specifies the path to scan (default: current directory ".")
 - `-l, --language` : Programming language(s) to scan for secrets. Comma-separated list or "all" for all languages
 - `-a, --all_files` : Include all files in the scan, regardless of file extension (overrides language flag)
 - `-b, --binary_check` : Include binary files in the scan (only effective when used with --all_files)
+- `-v, --vars` : Comma-separated list of additional variables to include in the scan
+- `-r, --regex_str` : User-defined regular expression for matching custom/unsupported secrets
 
 ### ⚠️ Binary File Scanning Warning
 
@@ -173,11 +188,14 @@ The tool supports scanning files for the following programming languages. Use th
 - `perl` (.pl, .pm)
 - `lua` (.lua)
 
-**Data & Analytics:**
+**Data & Configuration:**
 
 - `sql` (.sql)
 - `r` (.r, .R)
 - `matlab` (.m)
+- `yaml` (.yaml, .yml)
+- `xml` (.xml)
+- `json` (.json)
 
 **Other Languages:**
 
@@ -187,13 +205,13 @@ The tool supports scanning files for the following programming languages. Use th
 
 ```bash
 # Scan only Python files
-./seekr secrets --path . --language python
+./seekr --path . --language python
 
 # Scan multiple languages
-./seekr secrets --path . --language python,javascript,go
+./seekr --path . --language python,javascript,go
 
 # Scan all supported languages
-./seekr secrets --path . --language all
+./seekr --path . --language all
 ```
 
 Use `--language all` or omit the language flag to scan all supported file types.
@@ -219,9 +237,18 @@ The tool scans for environment variables and configuration values that commonly 
 - **API Keys**: Various service API keys (Stripe, Twilio, SendGrid, etc.)
 - **Database Credentials**: `DATABASE_PASSWORD`, `DB_USER`, `MYSQL_PASSWORD`
 - **OAuth Secrets**: `CLIENT_SECRET`, `OAUTH_TOKEN`
-- **SSH Keys**: `SSH_PRIVATE_KEY`, `id_rsa`
+- **SSH Private Keys**: Automatically detects PEM-formatted private keys (`-----BEGIN PRIVATE KEY-----`)
 - **Docker Secrets**: `DOCKER_PASSWORD`, `DOCKER_TOKEN`
 - **CI/CD Variables**: Travis, Jenkins, and other CI platform secrets
+- **Custom Variables**: User-defined variable names via `--vars` flag
+- **Custom Patterns**: User-defined regex patterns via `--regex_str` flag
+
+### Advanced Detection Features
+
+- **Case-Insensitive Matching**: All pattern matching is performed case-insensitively
+- **SSH Key Detection**: Recognizes various private key formats (RSA, DSA, ECDSA, etc.)
+- **Custom Variable Lists**: Specify additional variables to scan for with comma-separated lists
+- **Regex Pattern Matching**: Define custom regular expressions for organization-specific secrets
 
 ## Use Cases
 
@@ -240,11 +267,11 @@ The tool scans for environment variables and configuration values that commonly 
 
 ## Future Enhancements
 
-- Custom detection pattern support (see TODO in code)
 - Configuration file support
 - Integration with secret management services
 - Additional output formats (JSON, CSV)
 - Whitelist/blacklist functionality
+- Performance optimizations for large repositories
 
 ## AI Disclosure
 
