@@ -21,7 +21,7 @@ THE SOFTWARE.
 */
 package main
 
-import "mertzjames/seekr/cmd"
+import "github.com/mertzjames/seekr/cmd"
 
 func main() {
 	cmd.Execute()
