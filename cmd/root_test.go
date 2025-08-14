@@ -10,10 +10,10 @@ func TestCheckIfText(t *testing.T) {
 		filePath string
 		expected bool
 	}{
-		{"Text file", "./tests/secrets/config.py", true},
-		{"Binary file", "./tests/secrets/example.bin", false},
-		{"JavaScript file", "./tests/secrets/database.js", true},
-		{"JSON file", "./tests/secrets/settings.json", true},
+		{"Text file", "./testdata/config.py", true},
+		{"Binary file", "./testdata/example.bin", false},
+		{"JavaScript file", "./testdata/database.js", true},
+		{"JSON file", "./testdata/settings.json", true},
 	}
 
 	for _, tt := range tests {
