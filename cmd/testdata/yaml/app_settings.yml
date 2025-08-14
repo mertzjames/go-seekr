@@ -1,0 +1,68 @@
+# app_settings.yml
+# YAML configuration file with sensitive data
+
+# Database configuration
+database:
+  host: "prod-db.example.com"
+  port: 5432
+  username: "app_user"
+  DATABASE_PASSWORD: "yaml_secret_password_2024!"
+  ssl_mode: "require"
+
+# API Keys and tokens
+api_keys:
+  stripe:
+    publishable: "pk_live_51Example123456789012345678901234567890123456"
+    STRIPE_SECRET_KEY: "sk_live_51Example123456789012345678901234567890123456"
+  
+  github:
+    GITHUB_TOKEN: "ghp_1234567890abcdefghijklmnopqrstuvwxyz123"
+    client_id: "Iv1.1234567890abcdef"
+    CLIENT_SECRET: "1234567890abcdef1234567890abcdef12345678"
+  
+  aws:
+    AWS_ACCESS_KEY_ID: "AKIAIOSFODNN7EXAMPLE"
+    AWS_SECRET_ACCESS_KEY: "wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY"
+    region: "us-west-2"
+  
+  google:
+    GOOGLE_CLIENT_ID: "123456789012-abcdefghijklmnopqrstuvwxyz123456.apps.googleusercontent.com"
+    GOOGLE_CLIENT_SECRET: "GOCSPX-AbCdEfGhIjKlMnOpQrStUvWxYz123456"
+    GOOGLE_MAPS_API_KEY: "AIzaSyBcdefghijklmnopqrstuvwxyz1234567890"
+
+# Email service configuration
+email:
+  service: "sendgrid"
+  SENDGRID_API_KEY: "SG.AbCdEfGhIjKlMnOpQrStUvWxYz123456789.012345678901234567890abcdefghijklmnop"
+  from_address: "noreply@example.com"
+
+# Social media integration
+social:
+  twitter:
+    TWITTER_CONSUMER_KEY: "AbCdEfGhIjKlMnOpQrStU"
+    TWITTER_CONSUMER_SECRET: "1234567890abcdefghijklmnopqrstuvwxyz1234567890ab"
+  
+  slack:
+    SLACK_BOT_TOKEN: "xoxb-1234567890123-4567890123456-AbCdEfGhIjKlMnOpQrStUvWx"
+    webhook_url: "https://hooks.slack.com/services/T00000000/B00000000/XXXXXXXXXXXXXXXXXXXXXXXX"
+
+# Security settings
+security:
+  JWT_SECRET: "your-256-bit-secret-key-for-jwt-tokens"
+  SESSION_SECRET: "another-secret-for-session-management"
+  encryption_key: "32-byte-encryption-key-for-sensitive-data"
+
+# Third-party services
+services:
+  firebase:
+    FIREBASE_API_KEY: "AIzaSyBcdefghijklmnopqrstuvwxyz1234567890"
+    project_id: "myapp-12345"
+    FIREBASE_PROJECT_ID: "myapp-12345"
+  
+  twilio:
+    TWILIO_ACCOUNT_SID: "ACabcdef1234567890abcdef1234567890ab"
+    TWILIO_AUTH_TOKEN: "your_auth_token_here_32_chars_long"
+  
+  contentful:
+    CONTENTFUL_ACCESS_TOKEN: "your-contentful-access-token-here-64-chars-long-1234567890ab"
+    space_id: "your-space-id"

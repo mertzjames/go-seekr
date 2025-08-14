@@ -1,0 +1,85 @@
+{
+  "name": "my-app-config",
+  "version": "1.0.0",
+  "description": "Application configuration with embedded secrets",
+  "database": {
+    "host": "prod-mongo.example.com",
+    "port": 27017,
+    "username": "app_user",
+    "DATABASE_PASSWORD": "json_secret_password_2024!",
+    "database_name": "production_app",
+    "ssl": true
+  },
+  "api_keys": {
+    "stripe": {
+      "publishable_key": "pk_live_51Example123456789012345678901234567890123456",
+      "STRIPE_SECRET_KEY": "sk_live_51Example123456789012345678901234567890123456"
+    },
+    "github": {
+      "GITHUB_TOKEN": "ghp_1234567890abcdefghijklmnopqrstuvwxyz123",
+      "client_id": "Iv1.1234567890abcdef",
+      "CLIENT_SECRET": "1234567890abcdef1234567890abcdef12345678"
+    },
+    "aws": {
+      "AWS_ACCESS_KEY_ID": "AKIAIOSFODNN7EXAMPLE",
+      "AWS_SECRET_ACCESS_KEY": "wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY",
+      "region": "us-west-2"
+    },
+    "google": {
+      "GOOGLE_CLIENT_ID": "123456789012-abcdefghijklmnopqrstuvwxyz123456.apps.googleusercontent.com",
+      "GOOGLE_CLIENT_SECRET": "GOCSPX-AbCdEfGhIjKlMnOpQrStUvWxYz123456",
+      "GOOGLE_MAPS_API_KEY": "AIzaSyBcdefghijklmnopqrstuvwxyz1234567890"
+    }
+  },
+  "email_services": {
+    "sendgrid": {
+      "SENDGRID_API_KEY": "SG.AbCdEfGhIjKlMnOpQrStUvWxYz123456789.012345678901234567890abcdefghijklmnop",
+      "from_email": "noreply@example.com"
+    },
+    "mailgun": {
+      "MAILGUN_API_KEY": "key-1234567890abcdef1234567890abcdef",
+      "domain": "mg.example.com"
+    }
+  },
+  "social_media": {
+    "twitter": {
+      "TWITTER_CONSUMER_KEY": "AbCdEfGhIjKlMnOpQrStU",
+      "TWITTER_CONSUMER_SECRET": "1234567890abcdefghijklmnopqrstuvwxyz1234567890ab"
+    },
+    "slack": {
+      "SLACK_BOT_TOKEN": "xoxb-1234567890123-4567890123456-AbCdEfGhIjKlMnOpQrStUvWx",
+      "webhook_url": "https://hooks.slack.com/services/T00000000/B00000000/XXXXXXXXXXXXXXXXXXXXXXXX"
+    }
+  },
+  "security": {
+    "JWT_SECRET": "your-json-jwt-secret-key-256-bits-long",
+    "SESSION_SECRET": "session-secret-for-auth-management",
+    "encryption_key": "32-byte-encryption-key-for-data"
+  },
+  "third_party_services": {
+    "firebase": {
+      "FIREBASE_API_KEY": "AIzaSyBcdefghijklmnopqrstuvwxyz1234567890",
+      "project_id": "myapp-12345",
+      "FIREBASE_PROJECT_ID": "myapp-12345",
+      "auth_domain": "myapp-12345.firebaseapp.com"
+    },
+    "twilio": {
+      "TWILIO_ACCOUNT_SID": "ACabcdef1234567890abcdef1234567890ab",
+      "TWILIO_AUTH_TOKEN": "your_auth_token_here_32_chars_long"
+    },
+    "contentful": {
+      "CONTENTFUL_ACCESS_TOKEN": "your-contentful-access-token-here-64-chars-long-1234567890ab",
+      "space_id": "contentful-space-id"
+    }
+  },
+  "development": {
+    "debug": true,
+    "log_level": "debug",
+    "test_api_key": "test-api-key-for-development-only"
+  },
+  "connection_strings": {
+    "primary_db": "postgresql://user:hardcoded_password@prod.db.example.com:5432/myapp",
+    "redis": "redis://user:redis_password@cache.example.com:6379/0",
+    "mongodb": "mongodb://admin:mongo_secret@cluster.mongodb.net/production"
+  }
+}

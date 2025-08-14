@@ -1,0 +1,78 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- application.xml -->
+<!-- XML configuration file with embedded secrets -->
+
+<configuration>
+    <appSettings>
+        <add key="Environment" value="Production" />
+        <add key="Debug" value="false" />
+        
+        <!-- Database Configuration -->
+        <add key="DatabaseHost" value="prod-sql.example.com" />
+        <add key="DatabaseUser" value="xml_user" />
+        <add key="DATABASE_PASSWORD" value="xml_secret_password_2024!" />
+        <add key="DatabaseName" value="production_app" />
+        
+        <!-- API Keys and Tokens -->
+        <add key="GITHUB_TOKEN" value="ghp_1234567890abcdefghijklmnopqrstuvwxyz123" />
+        <add key="STRIPE_SECRET_KEY" value="sk_live_51Example123456789012345678901234567890123456" />
+        <add key="StripePublishableKey" value="pk_live_51Example123456789012345678901234567890123456" />
+        
+        <!-- AWS Configuration -->
+        <add key="AWS_ACCESS_KEY_ID" value="AKIAIOSFODNN7EXAMPLE" />
+        <add key="AWS_SECRET_ACCESS_KEY" value="wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY" />
+        <add key="AWSRegion" value="us-east-1" />
+        
+        <!-- Google Services -->
+        <add key="GOOGLE_CLIENT_ID" value="123456789012-abcdefghijklmnopqrstuvwxyz123456.apps.googleusercontent.com" />
+        <add key="GOOGLE_CLIENT_SECRET" value="GOCSPX-AbCdEfGhIjKlMnOpQrStUvWxYz123456" />
+        <add key="GOOGLE_MAPS_API_KEY" value="AIzaSyBcdefghijklmnopqrstuvwxyz1234567890" />
+        
+        <!-- Email Services -->
+        <add key="SENDGRID_API_KEY" value="SG.AbCdEfGhIjKlMnOpQrStUvWxYz123456789.012345678901234567890abcdefghijklmnop" />
+        <add key="MAILGUN_API_KEY" value="key-1234567890abcdef1234567890abcdef" />
+        <add key="SmtpPassword" value="email_password_123!" />
+        
+        <!-- Social Media Integration -->
+        <add key="TWITTER_CONSUMER_KEY" value="AbCdEfGhIjKlMnOpQrStU" />
+        <add key="TWITTER_CONSUMER_SECRET" value="1234567890abcdefghijklmnopqrstuvwxyz1234567890ab" />
+        <add key="SLACK_BOT_TOKEN" value="xoxb-1234567890123-4567890123456-AbCdEfGhIjKlMnOpQrStUvWx" />
+        
+        <!-- Security Settings -->
+        <add key="JWT_SECRET" value="your-xml-jwt-secret-key-256-bits" />
+        <add key="SESSION_SECRET" value="xml-session-secret-key" />
+        <add key="EncryptionKey" value="32-byte-encryption-key-xml-config" />
+    </appSettings>
+    
+    <connectionStrings>
+        <add name="DefaultConnection" 
+             connectionString="Server=prod.sql.example.com;Database=MyApp;User Id=app_user;Password=hardcoded_xml_password;" />
+        <add name="RedisConnection" 
+             connectionString="redis-server.example.com:6379,password=redis_secret_password" />
+        <add name="MongoConnection" 
+             connectionString="mongodb://admin:mongo_password_xml@cluster.mongodb.net/production" />
+    </connectionStrings>
+    
+    <firebase>
+        <projectId>myapp-12345</projectId>
+        <FIREBASE_API_KEY>AIzaSyBcdefghijklmnopqrstuvwxyz1234567890</FIREBASE_API_KEY>
+        <authDomain>myapp-12345.firebaseapp.com</authDomain>
+    </firebase>
+    
+    <thirdPartyServices>
+        <twilio>
+            <TWILIO_ACCOUNT_SID>ACabcdef1234567890abcdef1234567890ab</TWILIO_ACCOUNT_SID>
+            <TWILIO_AUTH_TOKEN>your_auth_token_here_32_chars_long</TWILIO_AUTH_TOKEN>
+        </twilio>
+        
+        <contentful>
+            <CONTENTFUL_ACCESS_TOKEN>your-contentful-access-token-here-64-chars-long-1234567890ab</CONTENTFUL_ACCESS_TOKEN>
+            <spaceId>contentful-space-id-xml</spaceId>
+        </contentful>
+        
+        <oauth>
+            <CLIENT_SECRET>oauth-client-secret-in-xml-config</CLIENT_SECRET>
+            <clientId>oauth-client-id-12345</clientId>
+        </oauth>
+    </thirdPartyServices>
+</configuration>
