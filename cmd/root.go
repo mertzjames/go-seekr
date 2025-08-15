@@ -44,6 +44,7 @@ var FLAG_USR_VARS string
 var FLAG_USR_REGEX string
 var FLAG_USR_VARS_FILE string
 var FLAG_USR_REGEX_FILE string
+var FLAG_IGNORE_DEFAULT_VARS bool
 
 //go:embed variables.txt
 var VARIABLES_LIST string
@@ -170,9 +171,9 @@ OAuth secrets, SSH private keys, Docker secrets, CI/CD variables, and much more.
 			}
 			regexList := extractContent(string(fileContent))
 			if FLAG_USR_REGEX != "" {
-				FLAG_USR_REGEX += "," + strings.Join(regexList, ",")
+				FLAG_USR_REGEX += "|" + strings.Join(regexList, "|")
 			} else {
-				FLAG_USR_REGEX = strings.Join(regexList, ",")
+				FLAG_USR_REGEX = strings.Join(regexList, "|")
 			}
 		}
 
@@ -186,7 +187,7 @@ OAuth secrets, SSH private keys, Docker secrets, CI/CD variables, and much more.
 			}
 			if !d.IsDir() {
 				// fmt.Println("[DEBG]    Processing file:", path)
-				processFile(path, selectedExtensions, FLAG_INCLUDE_ALL, FLAG_INCLUDE_BINARY, FLAG_USR_VARS, FLAG_USR_REGEX)
+				processFile(path, selectedExtensions, FLAG_INCLUDE_ALL, FLAG_INCLUDE_BINARY, FLAG_USR_VARS, FLAG_USR_REGEX, FLAG_IGNORE_DEFAULT_VARS)
 			} else {
 				fmt.Println("[INFO]    Scanning directory:", path)
 			}
@@ -224,6 +225,7 @@ func init() {
 	rootCmd.Flags().StringVarP(&FLAG_USR_REGEX, "regex_str", "r", "", "User-defined regular expression for matching custom/unsupported secrets.")
 	rootCmd.Flags().StringVarP(&FLAG_USR_VARS_FILE, "vars_file", "V", "", "Path to a file containing additional variables to include in the scan, one per line.")
 	rootCmd.Flags().StringVarP(&FLAG_USR_REGEX_FILE, "regex_file", "R", "", "Path to a file containing user-defined regular expressions for matching custom/unsupported secrets, one per line.")
+	rootCmd.Flags().BoolVarP(&FLAG_IGNORE_DEFAULT_VARS, "ignore_default", "i", false, "Ignore the default set of vulnerable variables and only use user-defined variables and regex patterns.")
 }
 
 func extractContent(content string) []string {
@@ -304,7 +306,7 @@ func uniqueSlices[T comparable](sliceOfSlices [][]T) [][]T {
 }
 
 // processFile: processes a file based on its type (binary or text) and the selected extensions.
-func processFile(filePath string, selectedExtensions []string, check_all bool, check_binary bool, user_vars_str string, user_regex_str string) {
+func processFile(filePath string, selectedExtensions []string, check_all bool, check_binary bool, user_vars_str string, user_regex_str string, ignore_default bool) {
 	is_text := checkIfText(filePath)
 	if is_text {
 		// process file only if with selected extensions OR if all_files is set
@@ -316,7 +318,7 @@ func processFile(filePath string, selectedExtensions []string, check_all bool, c
 				fmt.Println("[ERROR] Unable to read file:", filePath, err)
 				return
 			}
-			checkForVulnVars(string(content), user_vars_str, user_regex_str)
+			checkForVulnVars(string(content), user_vars_str, user_regex_str, ignore_default)
 		} else {
 			// fmt.Println("[DEBG]    Skipping file due to unselected/unsupported extension:", ext)
 		}
@@ -330,7 +332,7 @@ func processFile(filePath string, selectedExtensions []string, check_all bool, c
 			return
 		}
 		fmt.Println("[INFO]    Scanning binary file:", filePath)
-		checkForVulnVarsBinary(content, user_vars_str, user_regex_str)
+		checkForVulnVarsBinary(content, user_vars_str, user_regex_str, ignore_default)
 	}
 
 }
@@ -373,32 +375,20 @@ func checkIfText(filePath string) bool {
 }
 
 // checkForVulnVars: checks for vulnerable variables in the given content.
-func checkForVulnVars(content string, user_vars_str string, user_regex_str string) bool {
+func checkForVulnVars(content string, user_vars_str string, user_regex_str string, ignore_default bool) bool {
 
-	var variablesList []string
-	lines := strings.Split(VARIABLES_LIST, "\n")
-	for _, line := range lines {
-		trimmedLine := strings.TrimSpace(line)
-
-		// Skip the line if it's empty or a comment
-		if trimmedLine == "" || strings.HasPrefix(trimmedLine, "#") {
-			continue
+	var matches [][]int
+	if !ignore_default {
+		variablesList := extractContent(VARIABLES_LIST)
+		vuln_vars := strings.Join(variablesList, "|")
+		vuln_reg := "(?i)(" + vuln_vars + ")(.*)"
+		// for all checks we do case insensitive checks as variables may use different casing
+		re, err := regexp.Compile(vuln_reg)
+		if err != nil {
+			log.Fatal(err)
 		}
-
-		variablesList = append(variablesList, trimmedLine)
+		matches = re.FindAllStringSubmatchIndex(content, -1)
 	}
-
-	vuln_vars := strings.Join(variablesList, "|")
-
-	vuln_reg := "(" + vuln_vars + ")(.*)"
-
-	// for all checks we do case insensitive checks as variables may use different casing
-	re, err := regexp.Compile("(?i)" + vuln_reg)
-	if err != nil {
-		log.Fatal(err)
-	}
-
-	matches := re.FindAllStringSubmatchIndex(content, -1)
 
 	// find matches according to the user defined variables and append them
 	// to the matches array
@@ -423,7 +413,7 @@ func checkForVulnVars(content string, user_vars_str string, user_regex_str strin
 	// make sure to remove them
 	matches = uniqueSlices(matches)
 
-	if matches == nil {
+	if len(matches) == 0 {
 		fmt.Println("[INFO]    No vulnerable variables found.")
 		return false
 	} else {
@@ -449,7 +439,7 @@ func isPrintable(b byte) bool {
 // checkForVulnVarsBinary: checks for vulnerable variables in binary content.
 //
 //	effectively the same as using the linux command `strings` on a binary file
-func checkForVulnVarsBinary(content []byte, user_vars_str string, user_regex_str string) bool {
+func checkForVulnVarsBinary(content []byte, user_vars_str string, user_regex_str string, ignore_default bool) bool {
 	const minLen = 4
 
 	if len(content) < minLen {
@@ -474,5 +464,5 @@ func checkForVulnVarsBinary(content []byte, user_vars_str string, user_regex_str
 		foundStrings = append(foundStrings, currentString.String())
 	}
 
-	return checkForVulnVars(strings.Join(foundStrings, ""), user_vars_str, user_regex_str)
+	return checkForVulnVars(strings.Join(foundStrings, ""), user_vars_str, user_regex_str, ignore_default)
 }
