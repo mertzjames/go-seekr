@@ -6,7 +6,7 @@ A simple Go-based tool for scanning repositories and files for leaked secrets an
 
 go-seekr is a security scanner that helps identify potentially leaked secrets and sensitive environment variables in your codebase. It uses pattern matching to detect over 400 common secret patterns including API keys, tokens, passwords, and other sensitive variables that could pose security risks if exposed.
 
-The detection patterns are based on the comprehensive list from the [LinPEAS script](https://github.com/peass-ng/PEASS-ng/blob/master/linPEAS/builder/linpeas_parts/variables/pwd_in_variables.sh), covering a wide range of services including:
+The detection patterns are embedded directly in the application using a comprehensive list based on the [LinPEAS script](https://github.com/peass-ng/PEASS-ng/blob/master/linPEAS/builder/linpeas_parts/variables/pwd_in_variables.sh), covering a wide range of services including:
 
 - Cloud providers (AWS, Google Cloud, Azure, DigitalOcean)
 - CI/CD platforms (GitHub, GitLab, Travis CI, Jenkins)
@@ -19,10 +19,12 @@ The detection patterns are based on the comprehensive list from the [LinPEAS scr
 ## Features
 
 - **Recursive Directory Scanning**: Scans all files in a specified directory and its subdirectories
-- **Comprehensive Pattern Detection**: Detects over 400 types of potentially sensitive variables
+- **Comprehensive Pattern Detection**: Detects over 400 types of potentially sensitive variables using embedded pattern database
 - **Line Number Reporting**: Shows exact line numbers where potential secrets are found
-- **Custom Variable Support**: Add your own variable names to scan for using the `--vars` flag
-- **Custom Regex Patterns**: Define custom regular expressions for advanced pattern matching
+- **Custom Variable Support**: Add your own variable names to scan for using the `--vars` flag or file-based input with `--vars_file`
+- **Custom Regex Patterns**: Define custom regular expressions for advanced pattern matching via `--regex_str` or `--regex_file`
+- **Flexible Input Methods**: Support both command-line arguments and file-based input for scalable custom pattern management
+- **Default Pattern Override**: Option to ignore built-in patterns and use only custom definitions with `--ignore_default`
 - **SSH Private Key Detection**: Automatically detects private SSH keys in PEM format
 - **Language-Specific Scanning**: Filter scanning by programming language or file type
 - **Binary File Support**: Optional scanning of binary files with text extraction
@@ -44,7 +46,7 @@ git clone https://github.com/mertzjames/go-seekr.git
 cd go-seekr
 ```
 
-2. Build the application:
+1. Build the application:
 
 ```bash
 go build -o seekr main.go
@@ -132,6 +134,24 @@ Scan with custom regex pattern:
 ./seekr --path /path/to/your/project --regex_str "secret[_-]?key.*=.*"
 ```
 
+Load custom variables from a file:
+
+```bash
+./seekr --path /path/to/your/project --vars_file /path/to/custom_vars.txt
+```
+
+Load custom regex patterns from a file:
+
+```bash
+./seekr --path /path/to/your/project --regex_file /path/to/custom_patterns.txt
+```
+
+Use only custom variables and regex patterns (ignore defaults):
+
+```bash
+./seekr --path /path/to/your/project --vars_file custom_vars.txt --ignore_default
+```
+
 ### Command-line Options
 
 - `-p, --path` : Specifies the path to scan (default: current directory ".")
@@ -140,6 +160,38 @@ Scan with custom regex pattern:
 - `-b, --binary_check` : Include binary files in the scan (only effective when used with --all_files)
 - `-v, --vars` : Comma-separated list of additional variables to include in the scan
 - `-r, --regex_str` : User-defined regular expression for matching custom/unsupported secrets
+- `-V, --vars_file` : Path to a file containing additional variables to include in the scan, one per line
+- `-R, --regex_file` : Path to a file containing user-defined regular expressions for matching custom/unsupported secrets, one per line
+- `-i, --ignore_default` : Ignore the default set of vulnerable variables and only use user-defined variables and regex patterns
+
+### File-based Input Formats
+
+#### Variables File Format
+
+When using the `--vars_file` flag, create a text file with one variable name per line. Lines starting with `#` are treated as comments and ignored:
+
+```text
+# Custom variables for my organization
+MY_SECRET_API_KEY
+CUSTOM_DATABASE_PASSWORD
+INTERNAL_SERVICE_TOKEN
+# Add more variables below
+COMPANY_SPECIFIC_SECRET
+```
+
+#### Regex File Format
+
+When using the `--regex_file` flag, create a text file with one regular expression per line. Lines starting with `#` are treated as comments and ignored:
+
+```text
+# Custom regex patterns
+secret[_-]?key.*=.*
+password[_-]?(hash|pwd).*=.*
+# API key patterns
+api[_-]?key[_-]?\w*.*=.*
+```
+
+**Note**: Regular expressions are automatically case-insensitive and wrapped with additional matching logic. You only need to provide the core pattern.
 
 ### ⚠️ Binary File Scanning Warning
 
@@ -240,23 +292,27 @@ The tool scans for environment variables and configuration values that commonly 
 - **SSH Private Keys**: Automatically detects PEM-formatted private keys (`-----BEGIN PRIVATE KEY-----`)
 - **Docker Secrets**: `DOCKER_PASSWORD`, `DOCKER_TOKEN`
 - **CI/CD Variables**: Travis, Jenkins, and other CI platform secrets
-- **Custom Variables**: User-defined variable names via `--vars` flag
-- **Custom Patterns**: User-defined regex patterns via `--regex_str` flag
+- **Custom Variables**: User-defined variable names via `--vars` flag or `--vars_file` for file-based input
+- **Custom Patterns**: User-defined regex patterns via `--regex_str` flag or `--regex_file` for file-based input
 
 ### Advanced Detection Features
 
 - **Case-Insensitive Matching**: All pattern matching is performed case-insensitively
 - **SSH Key Detection**: Recognizes various private key formats (RSA, DSA, ECDSA, etc.)
-- **Custom Variable Lists**: Specify additional variables to scan for with comma-separated lists
-- **Regex Pattern Matching**: Define custom regular expressions for organization-specific secrets
+- **Custom Variable Lists**: Specify additional variables to scan for with comma-separated lists or file input
+- **Regex Pattern Matching**: Define custom regular expressions for organization-specific secrets via command line or file input
+- **Flexible Input Methods**: Support both command-line arguments and file-based input for custom variables and patterns
+- **Default Pattern Override**: Use `--ignore_default` to scan only for custom patterns, ignoring the built-in pattern database
 
 ## Use Cases
 
 - **Pre-commit Hooks**: Integrate into your Git workflow to catch secrets before they're committed
 - **Security Audits**: Regular scanning of codebases for exposed credentials
-- **CI/CD Pipeline Integration**: Automated secret detection in build processes
+- **CI/CD Pipeline Integration**: Automated secret detection in build processes with custom organization-specific patterns
 - **Code Reviews**: Manual verification during code review processes
 - **Compliance**: Help meet security compliance requirements
+- **Organization-Specific Scanning**: Use file-based custom variables and patterns to detect company-specific sensitive data
+- **Scalable Pattern Management**: Maintain and version-control custom detection patterns using file-based inputs
 
 ## Important Notes
 
