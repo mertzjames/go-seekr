@@ -181,7 +181,19 @@ OAuth secrets, SSH private keys, Docker secrets, CI/CD variables, and much more.
 
 		// TODO: Consider the case of processing a single file but isn't directly supported/is a binary file
 		//  should we force the processing or alert the user that it won't do anything?
-		err := filepath.WalkDir(FLAG_SCAN_PATH, func(path string, d fs.DirEntry, err error) error {
+		fileInfo, err := os.Stat(FLAG_SCAN_PATH)
+		if err != nil {
+			log.Fatalf("[FATAL] Unable to stat scan path: %v", err)
+		}
+
+		if !fileInfo.IsDir() {
+			FLAG_INCLUDE_ALL = true
+			if !checkIfText(FLAG_SCAN_PATH) && !FLAG_INCLUDE_BINARY {
+				log.Fatal("[FATAL] A binary file was passed without setting the --binary_check flag.")
+			}
+		}
+
+		err = filepath.WalkDir(FLAG_SCAN_PATH, func(path string, d fs.DirEntry, err error) error {
 			if err != nil {
 				return fmt.Errorf("[FATAL] accessing path %q: %v", path, err)
 			}
