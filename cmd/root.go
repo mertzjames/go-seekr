@@ -114,8 +114,7 @@ Quick Examples:
 
 Detects: AWS credentials, GitHub tokens, API keys (Stripe, Twilio, etc.), database passwords, 
 OAuth secrets, SSH private keys, Docker secrets, CI/CD variables, and much more.`,
-	// Uncomment the following line if your bare application
-	// has an action associated with it:
+
 	Run: func(cmd *cobra.Command, args []string) {
 		if FLAG_INCLUDE_BINARY && !FLAG_INCLUDE_ALL {
 			fmt.Println("[WARN]    The --binary_check flag is only effective when the --all_files flag is also set.")
@@ -155,7 +154,7 @@ OAuth secrets, SSH private keys, Docker secrets, CI/CD variables, and much more.
 			if err != nil {
 				log.Fatalf("[FATAL] Unable to read user-defined variables file: %v", err)
 			}
-			variablesList := extractContent(string(fileContent))
+			variablesList := extractVars(string(fileContent))
 			if FLAG_USR_VARS != "" {
 				FLAG_USR_VARS += "," + strings.Join(variablesList, ",")
 			} else {
@@ -169,7 +168,7 @@ OAuth secrets, SSH private keys, Docker secrets, CI/CD variables, and much more.
 			if err != nil {
 				log.Fatalf("[FATAL] Unable to read user-defined regex file: %v", err)
 			}
-			regexList := extractContent(string(fileContent))
+			regexList := extractVars(string(fileContent))
 			if FLAG_USR_REGEX != "" {
 				FLAG_USR_REGEX += "|" + strings.Join(regexList, "|")
 			} else {
@@ -199,6 +198,7 @@ OAuth secrets, SSH private keys, Docker secrets, CI/CD variables, and much more.
 			}
 			if !d.IsDir() {
 				// fmt.Println("[DEBG]    Processing file:", path)
+
 				processFile(path, selectedExtensions, FLAG_INCLUDE_ALL, FLAG_INCLUDE_BINARY, FLAG_USR_VARS, FLAG_USR_REGEX, FLAG_IGNORE_DEFAULT_VARS)
 			} else {
 				fmt.Println("[INFO]    Scanning directory:", path)
@@ -240,7 +240,7 @@ func init() {
 	rootCmd.Flags().BoolVarP(&FLAG_IGNORE_DEFAULT_VARS, "ignore_default", "i", false, "Ignore the default set of vulnerable variables and only use user-defined variables and regex patterns.")
 }
 
-func extractContent(content string) []string {
+func extractVars(content string) []string {
 	// Remove leading and trailing whitespace
 	cleaned := strings.TrimSpace(content)
 
@@ -318,7 +318,7 @@ func uniqueSlices[T comparable](sliceOfSlices [][]T) [][]T {
 }
 
 // processFile: processes a file based on its type (binary or text) and the selected extensions.
-func processFile(filePath string, selectedExtensions []string, check_all bool, check_binary bool, user_vars_str string, user_regex_str string, ignore_default bool) {
+func processFile(filePath string, selectedExtensions []string, check_all bool, check_binary bool, user_vars_str string, user_regex_str string, ignore_default bool) (bool, [][]string) {
 	is_text := checkIfText(filePath)
 	if is_text {
 		// process file only if with selected extensions OR if all_files is set
@@ -328,9 +328,9 @@ func processFile(filePath string, selectedExtensions []string, check_all bool, c
 			content, err := os.ReadFile(filePath)
 			if err != nil {
 				fmt.Println("[ERROR] Unable to read file:", filePath, err)
-				return
+				return false, nil
 			}
-			checkForVulnVars(string(content), user_vars_str, user_regex_str, ignore_default)
+			return checkForVulnVars(string(content), user_vars_str, user_regex_str, ignore_default)
 		} else {
 			// fmt.Println("[DEBG]    Skipping file due to unselected/unsupported extension:", ext)
 		}
@@ -341,12 +341,12 @@ func processFile(filePath string, selectedExtensions []string, check_all bool, c
 		content, err := os.ReadFile(filePath)
 		if err != nil {
 			fmt.Println("[ERROR] Unable to read file:", filePath, err)
-			return
+			return false, nil
 		}
 		fmt.Println("[INFO]    Scanning binary file:", filePath)
-		checkForVulnVarsBinary(content, user_vars_str, user_regex_str, ignore_default)
+		return checkForVulnVarsBinary(content, user_vars_str, user_regex_str, ignore_default)
 	}
-
+	return false, nil
 }
 
 // checkIfText: checks if a file is a text file based on its content.
@@ -387,11 +387,31 @@ func checkIfText(filePath string) bool {
 }
 
 // checkForVulnVars: checks for vulnerable variables in the given content.
-func checkForVulnVars(content string, user_vars_str string, user_regex_str string, ignore_default bool) bool {
+func checkForVulnVars[T string | []byte](content T, user_vars_str string, user_regex_str string, ignore_default bool) (bool, [][]string) {
 
+	// TODO: Reduce this function to just checking for the vulnerable variables.
+	// Update it to just the checking logic based on the passed in variable
+	// strings.
+	var contentStr string
+	var err error
+	switch v := any(content).(type) {
+	case string:
+		// Handle string content
+		contentStr = v
+	case []byte:
+		// Handle byte content
+		err, contentStr = binToStrings(v)
+		if err != nil {
+			return false, nil
+		}
+	default:
+		return false, nil
+	}
+
+	var foundVulnVars [][]string
 	var matches [][]int
 	if !ignore_default {
-		variablesList := extractContent(VARIABLES_LIST)
+		variablesList := extractVars(VARIABLES_LIST)
 		vuln_vars := strings.Join(variablesList, "|")
 		vuln_reg := "(?i)(" + vuln_vars + ")(.*)"
 		// for all checks we do case insensitive checks as variables may use different casing
@@ -399,7 +419,7 @@ func checkForVulnVars(content string, user_vars_str string, user_regex_str strin
 		if err != nil {
 			log.Fatal(err)
 		}
-		matches = re.FindAllStringSubmatchIndex(content, -1)
+		matches = re.FindAllStringSubmatchIndex(contentStr, -1)
 	}
 
 	// find matches according to the user defined variables and append them
@@ -410,7 +430,7 @@ func checkForVulnVars(content string, user_vars_str string, user_regex_str strin
 		if err != nil {
 			log.Fatal(err)
 		}
-		matches = append(matches, usr_vars_re.FindAllStringSubmatchIndex(content, -1)...)
+		matches = append(matches, usr_vars_re.FindAllStringSubmatchIndex(contentStr, -1)...)
 	}
 
 	if user_regex_str != "" {
@@ -418,7 +438,7 @@ func checkForVulnVars(content string, user_vars_str string, user_regex_str strin
 		if err != nil {
 			log.Fatal(err)
 		}
-		matches = append(matches, usr_regex_re.FindAllStringSubmatchIndex(content, -1)...)
+		matches = append(matches, usr_regex_re.FindAllStringSubmatchIndex(contentStr, -1)...)
 	}
 
 	// Because we may have duplicate matches from user provided vars/regex
@@ -427,36 +447,36 @@ func checkForVulnVars(content string, user_vars_str string, user_regex_str strin
 
 	if len(matches) == 0 {
 		fmt.Println("[INFO]    No vulnerable variables found.")
-		return false
+		return false, foundVulnVars
 	} else {
 		fmt.Println("[VULN]    Found the following potential vulnerable variables:")
 		for _, matchIndices := range matches {
 			startIndex := matchIndices[0]
 			endIndex := matchIndices[1]
 
-			match := content[startIndex:endIndex]
-			lineNum := strings.Count(content[:startIndex], "\n") + 1
+			match := contentStr[startIndex:endIndex]
+			lineNum := strings.Count(contentStr[:startIndex], "\n") + 1
+			foundVulnVars = append(foundVulnVars, []string{fmt.Sprintf("%d", lineNum), match})
 			fmt.Printf("[VULN]      - %03d: %s\n", lineNum, match)
 		}
 
-		return true
+		return true, foundVulnVars
 	}
 }
 
-// isPrintable: checks if a byte is printable.
+// isPrintable: checks if a byte is printable including new line chars.
 func isPrintable(b byte) bool {
 	return (b >= 32 && b <= 126) || b == '\n' || b == '\r' || b == '\t'
 }
 
-// checkForVulnVarsBinary: checks for vulnerable variables in binary content.
+// binToStrings: converts binary content to a slice of strings.
 //
 //	effectively the same as using the linux command `strings` on a binary file
-func checkForVulnVarsBinary(content []byte, user_vars_str string, user_regex_str string, ignore_default bool) bool {
+func binToStrings(content []byte) (error, string) {
 	const minLen = 4
 
 	if len(content) < minLen {
-		fmt.Println("[INFO]    Skipping binary file (too short)")
-		return false
+		return fmt.Errorf("binary content too short"), ""
 	}
 
 	var currentString bytes.Buffer
@@ -476,5 +496,5 @@ func checkForVulnVarsBinary(content []byte, user_vars_str string, user_regex_str
 		foundStrings = append(foundStrings, currentString.String())
 	}
 
-	return checkForVulnVars(strings.Join(foundStrings, ""), user_vars_str, user_regex_str, ignore_default)
+	return nil, strings.Join(foundStrings, "")
 }
