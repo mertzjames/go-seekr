@@ -27,6 +27,7 @@ import (
 	"fmt"
 	"io/fs"
 	"log"
+	"log/slog"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -131,13 +132,13 @@ Detects: AWS credentials, GitHub tokens, API keys (Stripe, Twilio, etc.), databa
 OAuth secrets, SSH private keys, Docker secrets, CI/CD variables, and much more.`,
 
 	Run: func(cmd *cobra.Command, args []string) {
-		var varsToCheck []string
 		checkParams()
 
+		// Configure the selected file extensions for processing
 		selectedExtensions := []string{}
 		selectedLanguages := strings.Split(FLAG_LANGUAGE, ",")
 
-		// fmt.Println("[DEBG]    Selected languages for scanning:", selectedLanguages)
+		slog.Debug("Selected languages for scanning: ", "languages", selectedLanguages)
 
 		// If nothing or all is provided, even with a list of other languages, just
 		// include all supported languages.  Otherwise add all extensions that were
@@ -151,11 +152,13 @@ OAuth secrets, SSH private keys, Docker secrets, CI/CD variables, and much more.
 				if extensions, ok := LANG_EXT[lang]; ok {
 					selectedExtensions = append(selectedExtensions, extensions...)
 				} else {
-					log.Printf("[WARN]    Language '%s' is not supported or has no associated file extensions. Skipping.", lang)
+					slog.Warn("Language '" + lang + "' is not supported or has no associated file extensions. Skipping.")
 				}
 			}
 		}
 
+		// Collect the variables/regex vulnerability patterns to check
+		var varsToCheck []string
 		if !FLAG_IGNORE_DEFAULT_VARS {
 			defaultVars := strings.Join(extractVars(VARIABLES_LIST, DelimeterNewline), "|")
 			varsToCheck = append(varsToCheck, defaultVars)
@@ -165,7 +168,7 @@ OAuth secrets, SSH private keys, Docker secrets, CI/CD variables, and much more.
 			// Read user-defined variables from a file
 			fileContent, err := os.ReadFile(FLAG_USR_VARS_FILE)
 			if err != nil {
-				log.Fatalf("[FATAL] Unable to read user-defined variables file: %v", err)
+				slog.Error(fmt.Sprintf("Unable to read user-defined variables file: %v", err))
 			}
 			usrVars := strings.Join(extractVars(string(fileContent), DelimeterNewline), "|")
 			varsToCheck = append(varsToCheck, usrVars)
@@ -179,7 +182,7 @@ OAuth secrets, SSH private keys, Docker secrets, CI/CD variables, and much more.
 			// Read user-defined regular expressions from a file
 			fileContent, err := os.ReadFile(FLAG_USR_REGEX_FILE)
 			if err != nil {
-				log.Fatalf("[FATAL] Unable to read user-defined regex file: %v", err)
+				slog.Error(fmt.Sprintf("Unable to read user-defined regex file: %v", err))
 			}
 			usrRegex := strings.Join(extractVars(string(fileContent), DelimeterNewline), "|")
 			varsToCheck = append(varsToCheck, usrRegex)
@@ -189,61 +192,64 @@ OAuth secrets, SSH private keys, Docker secrets, CI/CD variables, and much more.
 			varsToCheck = append(varsToCheck, usrRegex)
 		}
 
-		// fmt.Println("[DEBG]    Selected file extensions for scanning:", selectedExtensions)
+		slog.Debug("Selected file extensions for scanning: " + strings.Join(selectedExtensions, ", "))
 
+		// Check if the scan path is valid
 		fileInfo, err := os.Stat(FLAG_SCAN_PATH)
 		if err != nil {
-			log.Fatalf("[FATAL] Unable to open scan path (does it exist?): %v", err)
+			slog.Error(fmt.Sprintf("Unable to open scan path (does it exist?): %v", err))
 		}
 
+		// Warn the user that they've selected to scan a binary file without enabling that option
 		if !fileInfo.IsDir() {
 			FLAG_INCLUDE_ALL = true
 			if !checkIfText(FLAG_SCAN_PATH) && !FLAG_INCLUDE_BINARY {
-				log.Fatal("[FATAL] A binary file was passed without setting the --binary_check flag.")
+				slog.Error("A binary file was passed without setting the --binary_check flag.")
 			}
 		}
 
+		// Only process binary files if the binary and all flags are set
 		processBinary := FLAG_INCLUDE_BINARY && FLAG_INCLUDE_ALL
-
 		err = filepath.WalkDir(FLAG_SCAN_PATH, func(path string, d fs.DirEntry, err error) error {
 			if err != nil {
-				return fmt.Errorf("[FATAL] accessing path %q: %v", path, err)
+				return fmt.Errorf("accessing path %q: %v", path, err)
 			}
 			if !d.IsDir() {
-				// fmt.Println("[DEBG]    Processing file:", path)
+				slog.Debug("Processing file:", "path", path)
+
+				// Only process files with the selected extensions or if the include all flag is set
 				ext := filepath.Ext(path)
 				if slices.Contains(selectedExtensions, ext) || FLAG_INCLUDE_ALL {
 
-					fmt.Println("[INFO] Scanning file:", path)
+					slog.Info("Scanning file:", "path", path)
 					vulns, err := processFile(path, varsToCheck, !FLAG_CASE_INSENSITIVE, processBinary)
 					if err != nil {
-						log.Printf("[ERROR]    Error processing file %q: %v", path, err)
+						slog.Error(fmt.Sprintf("Error processing file %q: %v", path, err))
 					}
 					for _, vuln := range vulns {
-						fmt.Printf("[VULN]    Found potentially leaked secret (Line %03d): %s\n", vuln.LineNum, vuln.VarName)
-						fmt.Printf("[VULN]      With Value: '%s'\n", vuln.VarContent)
+						slog.Info(fmt.Sprintf("Found potentially leaked secret (Line %03d): %s", vuln.LineNum, vuln.VarName))
+						slog.Info(fmt.Sprintf("      with Value: '%s'", vuln.VarContent))
 					}
 				} else {
-					fmt.Println("[INFO]    Scanning directory:", path)
+					slog.Info(fmt.Sprintf("Scanning directory: %s", path))
 				}
 			}
-			// printing empty line to cleanly separate output
-			fmt.Println("")
 			return nil
 		})
 		if err != nil {
-			log.Fatal(err)
+			slog.Error(fmt.Sprintf("Error walking directory: %v", err))
 		}
 	},
 }
 
+// checkParams: validate command-line parameters
 func checkParams() {
 	if FLAG_INCLUDE_BINARY && !FLAG_INCLUDE_ALL {
-		fmt.Println("[WARN]    The --binary_check flag is only effective when the --all_files flag is also set.")
-		fmt.Println("[WARN]      It will be ignored.")
+		slog.Warn("The --binary_check flag is only effective when the --all_files flag is also set.")
+		slog.Warn("It will be ignored.")
 	} else if FLAG_INCLUDE_BINARY && FLAG_INCLUDE_ALL {
-		fmt.Println("[WARN]    Scanning binary files only scans for embedded text based secrets and can take a long")
-		fmt.Println("[WARN]      time to process files.  Scanning binaries may also result in system instability.")
+		slog.Warn("Scanning binary files only scans for embedded text based secrets and can take a long")
+		slog.Warn("time to process files.  Scanning binaries may also result in system instability.")
 	}
 }
 
@@ -285,6 +291,7 @@ const (
 	DelimeterComma   DelimeterOptions = ","
 )
 
+// extractVars extracts variable names from the given content based on the specified delimiter.
 func extractVars(content string, delimeter DelimeterOptions) []string {
 	var extractedVars []string
 
@@ -292,8 +299,8 @@ func extractVars(content string, delimeter DelimeterOptions) []string {
 	cleaned := strings.TrimSpace(content)
 
 	// Remove comments (lines starting with #)
-	lines := strings.Split(cleaned, string(delimeter))
-	for _, line := range lines {
+	lines := strings.SplitSeq(cleaned, string(delimeter))
+	for line := range lines {
 		// Skip the line if it's empty or a comment
 		if line == "" || strings.HasPrefix(line, "#") {
 			continue
@@ -383,7 +390,7 @@ func checkIfText(filePath string) bool {
 
 	// Skip files that cannot be opened but alert the user
 	if err != nil {
-		fmt.Println("[ERROR] Unable to open file:", filePath, err)
+		slog.Error(fmt.Sprintf("Unable to open file: %s, %v", filePath, err))
 		return false
 	}
 	defer file.Close()
