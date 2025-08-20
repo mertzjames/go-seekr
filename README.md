@@ -163,6 +163,7 @@ Use only custom variables and regex patterns (ignore defaults):
 - `-V, --vars_file` : Path to a file containing additional variables to include in the scan, one per line
 - `-R, --regex_file` : Path to a file containing user-defined regular expressions for matching custom/unsupported secrets, one per line
 - `-i, --ignore_default` : Ignore the default set of vulnerable variables and only use user-defined variables and regex patterns
+- `-C, --case_insensitive` : Peform case-insensitive checks for variables and regex patterns.  By default, all checks are case-sensitive.  Note: This may produce significantly more false positives.
 
 ### File-based Input Formats
 
