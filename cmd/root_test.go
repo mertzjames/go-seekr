@@ -92,3 +92,30 @@ func Test_uniqueSlices(t *testing.T) {
 		})
 	}
 }
+
+func Test_extractVars(t *testing.T) {
+	tests := []struct {
+		name      string
+		input     string
+		expected  []string
+		delimeter DelimeterOptions
+	}{
+		{"Single line", "MY_SECRET", []string{"MY_SECRET"}, DelimeterNewline},
+		{"Multiple lines", "MY_SECRET\nANOTHER_SECRET", []string{"MY_SECRET", "ANOTHER_SECRET"}, DelimeterNewline},
+		{"Commented Line", "#MY_SECRET", []string{}, DelimeterNewline},
+		{"Empty Line", "\n", []string{}, DelimeterNewline},
+		{"Whitespace Line", "   ", []string{}, DelimeterNewline},
+		{"Regex Pattern", "^([a-zA-Z0-9_\\-\\.]+)@([a-zA-Z0-9_\\-\\.]+)\\.([a-zA-Z]{2,5})$", []string{"^([a-zA-Z0-9_\\-\\.]+)@([a-zA-Z0-9_\\-\\.]+)\\.([a-zA-Z]{2,5})$"}, DelimeterNewline},
+		{"Mixed Content", "MY_SECRET\n# Commented Line\nANOTHER_SECRET\n([a-zA-Z0-9_\\-\\.]+)", []string{"MY_SECRET", "ANOTHER_SECRET", "([a-zA-Z0-9_\\-\\.]+)"}, DelimeterNewline},
+		{"Comma Delimeter", "MY_SECRET,ANOTHER_SECRET", []string{"MY_SECRET", "ANOTHER_SECRET"}, DelimeterComma},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := extractVars(tt.input, tt.delimeter)
+			if !slices.Equal(got, tt.expected) {
+				t.Errorf("extractContent(%q) = %v; want %v", tt.input, got, tt.expected)
+			}
+		})
+	}
+}
